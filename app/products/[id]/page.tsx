@@ -1,5 +1,6 @@
 // app/products/[id]/page.tsx
 import Link from 'next/link'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import type { Metadata } from 'next'
 
@@ -33,7 +34,7 @@ function isValidHttpUrl(u?: string | null) {
 }
 
 function sortAndFilterImages(images: ProductImage[] = []) {
-  // keep only real http(s) URLs, then sort (null sort_order goes last)
+  // keep only http(s) and sort by sort_order (nulls last)
   return images
     .filter((img) => isValidHttpUrl(img.url))
     .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
@@ -105,37 +106,56 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
         <div>
           {mainImage ? (
             <div style={{ display: 'grid', gap: 12 }}>
-              {/* Main image */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={mainImage.url!}
-                alt={mainImage.alt ?? p.name ?? 'Product image'}
+              {/* Main image (responsive) */}
+              <div
                 style={{
+                  position: 'relative',
                   width: '100%',
                   height: 420,
-                  objectFit: 'cover',
                   borderRadius: 8,
+                  overflow: 'hidden',
                   border: '1px solid #eee'
                 }}
-              />
+              >
+                <Image
+                  src={mainImage.url!}
+                  alt={mainImage.alt ?? p.name ?? 'Product image'}
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  style={{ objectFit: 'cover' }}
+                  priority
+                />
+              </div>
 
-              {/* Thumbnails (render only if we truly have any) */}
+              {/* Thumbnails */}
               {thumbnails.length > 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 8 }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
+                    gap: 8
+                  }}
+                >
                   {thumbnails.map((img, i) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <div
                       key={i}
-                      src={img.url!}
-                      alt={img.alt ?? p.name ?? 'Product image'}
                       style={{
+                        position: 'relative',
                         width: '100%',
                         height: 90,
-                        objectFit: 'cover',
                         borderRadius: 6,
+                        overflow: 'hidden',
                         border: '1px solid #eee'
                       }}
-                    />
+                    >
+                      <Image
+                        src={img.url!}
+                        alt={img.alt ?? p.name ?? 'Product image'}
+                        fill
+                        sizes="(max-width: 1024px) 25vw, 15vw"
+                        style={{ objectFit: 'cover' }}
+                      />
+                    </div>
                   ))}
                 </div>
               ) : null}
@@ -184,4 +204,3 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
     </main>
   )
 }
-``
