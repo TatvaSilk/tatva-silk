@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 const PIN_MAP: Record<string, string> = {
-  // Add more as needed
+  // Extend this as you like
   '396321': 'Billimora, Navsari',
   '396445': 'Navsari',
   '395003': 'Surat',
@@ -15,16 +15,18 @@ const PIN_MAP: Record<string, string> = {
 type DeliveryPref = { pin: string; label: string }
 
 export default function HeaderNav() {
-  const [q, setQ] = useState('')
   const router = useRouter()
 
-  // Delivery UI state
+  // Search
+  const [q, setQ] = useState('')
+
+  // Deliver-to
   const [open, setOpen] = useState(false)
   const [pin, setPin] = useState('')
   const [delivery, setDelivery] = useState<DeliveryPref | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
-  // Load saved delivery preference
+  // Load saved delivery preference (once)
   useEffect(() => {
     try {
       const raw = localStorage.getItem('ts.delivery')
@@ -32,11 +34,10 @@ export default function HeaderNav() {
         const parsed = JSON.parse(raw) as DeliveryPref
         setDelivery(parsed)
       } else {
-        // default (your current header message)
         setDelivery({ pin: '396321', label: 'Billimora, Navsari' })
       }
     } catch {
-      // ignore
+      /* ignore */
     }
   }, [])
 
@@ -56,7 +57,6 @@ export default function HeaderNav() {
   function saveZip(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
-
     const normalized = pin.trim()
     if (!/^\d{6}$/.test(normalized)) {
       setErr('Please enter a valid 6-digit PIN.')
@@ -67,7 +67,9 @@ export default function HeaderNav() {
     setDelivery(pref)
     try {
       localStorage.setItem('ts.delivery', JSON.stringify(pref))
-    } catch {/* ignore */}
+    } catch {
+      /* ignore */
+    }
     setOpen(false)
   }
 
@@ -76,13 +78,12 @@ export default function HeaderNav() {
       {/* ====== Header Bar ====== */}
       <header className="header">
         <div className="container header-row">
-          {/* Logo + location */}
+          {/* Logo + Deliver to (clickable) */}
           <div className="logo">
             <span className="logo-badge">TS</span>
             <div>
               <div style={{ fontWeight: 800, lineHeight: 1 }}>Tatva Silk</div>
 
-              {/* 🔘 Clickable "Deliver to" that opens ZIP dialog */}
               <button
                 onClick={openZipDialog}
                 style={{
@@ -99,7 +100,7 @@ export default function HeaderNav() {
             </div>
           </div>
 
-          {/* Address (secondary spot, hidden on md-) */}
+          {/* Secondary Deliver-to (hidden on md-) */}
           <div className="addr hide-md">
             Deliver to <strong>{delivery?.label ?? 'Choose location'}</strong>
           </div>
@@ -126,10 +127,8 @@ export default function HeaderNav() {
 
           {/* Account + Orders */}
           <div className="account hide-md" style={{ display: 'flex', gap: 10 }}>
-            /admin
-              Account &amp; Lists
-            </Link>
-            /orders
+            <Link href="/admin">Account &amp; Lists</Link>
+            <Link href="/orders">
               <strong>Orders</strong>
             </Link>
           </div>
@@ -139,7 +138,7 @@ export default function HeaderNav() {
         </div>
       </header>
 
-      {/* ====== ZIP Dialog ====== */}
+      {/* ====== ZIP Modal ====== */}
       {open ? (
         <div
           role="dialog"
@@ -177,7 +176,9 @@ export default function HeaderNav() {
               maxLength={6}
               placeholder="e.g., 396321"
               value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+              onChange={(e) =>
+                setPin(e.target.value.replace(/[^\d]/g, '').slice(0, 6))
+              }
               autoFocus
               style={{
                 width: '100%',
@@ -189,10 +190,19 @@ export default function HeaderNav() {
             />
 
             {err ? (
-              <div style={{ color: 'crimson', marginTop: 8, fontSize: 13 }}>{err}</div>
+              <div style={{ color: 'crimson', marginTop: 8, fontSize: 13 }}>
+                {err}
+              </div>
             ) : null}
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                marginTop: 12,
+                justifyContent: 'flex-end',
+              }}
+            >
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -221,11 +231,9 @@ export default function HeaderNav() {
               </button>
             </div>
 
-            {/* Preview of what will show */}
             {pin.length === 6 ? (
               <div style={{ marginTop: 10, fontSize: 13, color: 'var(--muted)' }}>
-                Will display as:{' '}
-                <strong>{PIN_MAP[pin] ?? `PIN ${pin}`}</strong>
+                Will display as: <strong>{PIN_MAP[pin] ?? `PIN ${pin}`}</strong>
               </div>
             ) : null}
           </form>
