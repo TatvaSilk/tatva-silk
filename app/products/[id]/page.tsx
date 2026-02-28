@@ -33,6 +33,7 @@ function isValidHttpUrl(u?: string | null) {
 }
 
 function sortAndFilterImages(images: ProductImage[] = []) {
+  // keep only real http(s) URLs, then sort (null sort_order goes last)
   return images
     .filter((img) => isValidHttpUrl(img.url))
     .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
@@ -104,6 +105,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
         <div>
           {mainImage ? (
             <div style={{ display: 'grid', gap: 12 }}>
+              {/* Main image */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={mainImage.url!}
@@ -116,6 +118,8 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
                   border: '1px solid #eee'
                 }}
               />
+
+              {/* Thumbnails (render only if we truly have any) */}
               {thumbnails.length > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 8 }}>
                   {thumbnails.map((img, i) => (
@@ -180,3 +184,4 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
     </main>
   )
 }
+``
