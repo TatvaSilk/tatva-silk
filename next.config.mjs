@@ -1,16 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
+    // Remote images that Next.js is allowed to optimize
     remotePatterns: [
       // Unsplash (your test image domain)
       { protocol: 'https', hostname: 'images.unsplash.com' },
 
-      // Supabase Storage (replace `YOUR-PROJECT-REF` with your real project ref)
-      // Find it in your Supabase project URL: https://YOUR-PROJECT-REF.supabase.co
-      { protocol: 'https', hostname: 'YOUR-PROJECT-REF.supabase.co' },
+      // Supabase Storage (covers your project, e.g. abcd1234.supabase.co)
+      { protocol: 'https', hostname: '**.supabase.co' },
 
-      // If you use any other image host/CDN, add it here too.
-      // { protocol: 'https', hostname: 'cdn.example.com' },
+      // If you use any other hosts, add them here, e.g.:
+      // { protocol: 'https', hostname: 'plus.unsplash.com' },
+      // { protocol: 'https', hostname: 'images.pexels.com' },
+      // { protocol: 'https', hostname: 'cdn.pixabay.com' },
+      // { protocol: 'https', hostname: 'your-cdn.example.com' },
     ],
   },
 };
