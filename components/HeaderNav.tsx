@@ -5,13 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-const PIN_MAP: Record<string, string> = {
-  // Extend this as you like
-  '396321': 'Billimora, Navsari',
-  '396445': 'Navsari',
-  '395003': 'Surat',
-}
-
 type DeliveryPref = { pin: string; label: string }
 
 export default function HeaderNav() {
@@ -20,13 +13,14 @@ export default function HeaderNav() {
   // Search
   const [q, setQ] = useState('')
 
-  // Deliver-to
+  // Deliver-to state
   const [open, setOpen] = useState(false)
   const [pin, setPin] = useState('')
   const [delivery, setDelivery] = useState<DeliveryPref | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
-  // Load saved delivery preference (once)
+  // Load saved preference
   useEffect(() => {
     try {
       const raw = localStorage.getItem('ts.delivery')
@@ -34,11 +28,10 @@ export default function HeaderNav() {
         const parsed = JSON.parse(raw) as DeliveryPref
         setDelivery(parsed)
       } else {
-        setDelivery({ pin: '396321', label: 'Billimora, Navsari' })
+        // Default for first-time visitors
+        setDelivery({ pin: '396321', label: 'Billimora, Navsari, Gujarat' })
       }
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
   }, [])
 
   function onSearch(e: React.FormEvent) {
@@ -54,23 +47,32 @@ export default function HeaderNav() {
     setOpen(true)
   }
 
-  function saveZip(e: React.FormEvent) {
+  async function saveZip(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
+
     const normalized = pin.trim()
     if (!/^\d{6}$/.test(normalized)) {
       setErr('Please enter a valid 6-digit PIN.')
       return
     }
-    const label = PIN_MAP[normalized] ?? `PIN ${normalized}`
-    const pref: DeliveryPref = { pin: normalized, label }
-    setDelivery(pref)
+
+    setSaving(true)
     try {
-      localStorage.setItem('ts.delivery', JSON.stringify(pref))
-    } catch {
-      /* ignore */
+      // 🔗 Call your new API route
+      const res = await fetch(`/api/pincode?pin=${normalized}`, { cache: 'no-store' })
+      if (!res.ok) throw new Error(`Lookup failed (${res.status})`)
+      const json = (await res.json()) as { ok: boolean; pin: string; label: string }
+      const label = json?.label || `PIN ${normalized}`
+      const pref = { pin: normalized, label }
+      setDelivery(pref)
+      try { localStorage.setItem('ts.delivery', JSON.stringify(pref)) } catch {}
+      setOpen(false)
+    } catch (e: any) {
+      setErr(e?.message ?? 'Could not resolve PIN. Try again.')
+    } finally {
+      setSaving(false)
     }
-    setOpen(false)
   }
 
   return (
@@ -128,9 +130,7 @@ export default function HeaderNav() {
           {/* Account + Orders */}
           <div className="account hide-md" style={{ display: 'flex', gap: 10 }}>
             <Link href="/admin">Account &amp; Lists</Link>
-            <Link href="/orders">
-              <strong>Orders</strong>
-            </Link>
+            <Link href="/orders"><strong>Orders</strong></Link>
           </div>
 
           {/* Cart */}
@@ -151,7 +151,7 @@ export default function HeaderNav() {
             placeItems: 'center',
             zIndex: 60,
           }}
-          onClick={() => setOpen(false)}
+          onClick={() => !saving && setOpen(false)}
         >
           <form
             onClick={(e) => e.stopPropagation()}
@@ -180,6 +180,7 @@ export default function HeaderNav() {
                 setPin(e.target.value.replace(/[^\d]/g, '').slice(0, 6))
               }
               autoFocus
+              disabled={saving}
               style={{
                 width: '100%',
                 padding: 10,
@@ -206,6 +207,7 @@ export default function HeaderNav() {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
+                disabled={saving}
                 style={{
                   padding: '8px 12px',
                   background: '#f3f4f6',
@@ -218,6 +220,7 @@ export default function HeaderNav() {
               </button>
               <button
                 type="submit"
+                disabled={saving}
                 style={{
                   padding: '8px 12px',
                   background: 'var(--accent)',
@@ -227,15 +230,9 @@ export default function HeaderNav() {
                   cursor: 'pointer',
                 }}
               >
-                Save
+                {saving ? 'Saving…' : 'Save'}
               </button>
             </div>
-
-            {pin.length === 6 ? (
-              <div style={{ marginTop: 10, fontSize: 13, color: 'var(--muted)' }}>
-                Will display as: <strong>{PIN_MAP[pin] ?? `PIN ${pin}`}</strong>
-              </div>
-            ) : null}
           </form>
         </div>
       ) : null}
