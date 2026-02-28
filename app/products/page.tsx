@@ -1,54 +1,35 @@
 // app/products/page.tsx
 import { supabase } from '@/lib/supabase'
 
-export const revalidate = 30 // Revalidate at most once every 30s
+export const revalidate = 30 // Rebuild at most once every 30s
 
-// Flexible product shape – we don't assume exact columns
 type Product = {
-  id: string | number
-  name?: string | null
-  image_url?: string | null
-  category?: string | null
-  // Any possible price fields (optional)
-  price?: number | null
-  price_inr?: number | null
-  price_cents?: number | null
-  mrp?: number | null
-  sale_price?: number | null
-  amount?: number | null
-  [key: string]: unknown
+  id: string
+  name: string | null
+  category: string | null
+  original_price: number | null
+  offer_price: number | null
+  stock: number | null
 }
 
-function pickPrice(p: Product): { value: number | null; formatted: string } {
-  // Try a list of common field names
-  const candidates = [
-    p.price,
-    p.price_inr,
-    p.sale_price,
-    p.mrp,
-    p.amount,
-    // If stored as cents/paise:
-    typeof p.price_cents === 'number' ? p.price_cents / 100 : null
-  ]
-
-  const value = candidates.find((v) => typeof v === 'number') ?? null
-  if (value === null) return { value: null, formatted: '—' }
-
-  // Format as INR (₹) – adjust if you prefer USD
-  return { value, formatted: `₹${Number(value).toLocaleString('en-IN')}` }
+function formatInr(n: number | null | undefined) {
+  if (typeof n !== 'number') return '—'
+  return `₹${n.toLocaleString('en-IN')}`
 }
 
 export default async function ProductsPage() {
-  // Select everything to avoid "column does not exist" errors
-  const { data, error } = await supabase.from('products').select('*')
+  // Only select columns that exist in your table
+  const { data, error } = await supabase
+    .from('products')
+    .select('id, name, category, original_price, offer_price, stock, is_active')
+    .eq('is_active', true) // show only active items
+    .order('name', { ascending: true })
 
   if (error) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
         <h1>Products</h1>
-        <p style={{ color: 'crimson' }}>
-          Failed to load products: {error.message}
-        </p>
+        <p style={{ color: 'crimson' }}>Failed to load products: {error.message}</p>
       </main>
     )
   }
@@ -70,26 +51,13 @@ export default async function ProductsPage() {
           }}
         >
           {products.map((p) => {
-            const { formatted } = pickPrice(p)
-            return (
-              <article key={String(p.id)} className="card">
-                {/* Image */}
-                {p.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={p.image_url}
-                    alt={p.name ?? 'Product image'}
-                    style={{
-                      width: '100%',
-                      height: 180,
-                      objectFit: 'cover',
-                      borderRadius: 8
-                    }}
-                  />
-                ) : null}
+            const effectivePrice =
+              typeof p.offer_price === 'number' ? p.offer_price : p.original_price
 
+            return (
+              <article key={p.id} className="card" style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
                 {/* Name */}
-                <h3 style={{ margin: '12px 0 4px' }}>{p.name ?? 'Untitled'}</h3>
+                <h3 style={{ margin: '8px 0 4px' }}>{p.name ?? 'Untitled'}</h3>
 
                 {/* Category (optional) */}
                 {p.category ? (
@@ -98,8 +66,29 @@ export default async function ProductsPage() {
                   </div>
                 ) : null}
 
-                {/* Price */}
-                <div style={{ fontWeight: 600 }}>{formatted}</div>
+                {/* Price (offer → original) */}
+                <div style={{ fontWeight: 600, marginTop: 6 }}>
+                  {formatInr(effectivePrice)}
+                  {typeof p.offer_price === 'number' && typeof p.original_price === 'number' ? (
+                    <span style={{ color: '#888', marginLeft: 8, textDecoration: 'line-through', fontWeight: 400 }}>
+                      {formatInr(p.original_price)}
+                    </span>
+                  ) : null}
+                </div>
+
+                {/* Stock (optional) */}
+                {typeof p.stock === 'number' ? (
+                  <div style={{ color: '#555', fontSize: 12, marginTop: 6 }}>
+                    Stock: {p.stock}
+                  </div>
+                ) : null}
+
+                {/* Link to detail page — we’ll implement [id] route next */}
+                <div style={{ marginTop: 10 }}>
+                  <a href={`/products/${p.id}`} style={{ color: '#2563eb' }}>
+                    View details →
+                  </a>
+                </div>
               </article>
             )
           })}
