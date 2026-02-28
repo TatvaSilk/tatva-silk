@@ -1,5 +1,5 @@
 // app/products/page.tsx
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 type Product = {
   id: string | number;
