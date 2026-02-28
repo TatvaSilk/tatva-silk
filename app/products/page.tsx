@@ -1,25 +1,24 @@
 // app/products/page.tsx
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@/lib/supabase'
+
+export const revalidate = 30 // Revalidate at most once every 30s
 
 type Product = {
-  id: string | number;
-  name: string;
-  price: number | null;
-  image_url: string | null;
-  category: string | null;
-};
-
-export const revalidate = 30; // ISR: revalidates this page every 30s on the server
+  id: string
+  name: string
+  price: number | null
+  image_url: string | null
+  category: string | null
+}
 
 export default async function ProductsPage() {
-  // Fetch products from Supabase
+  // Fetch products (adjust columns if your table differs)
   const { data, error } = await supabase
-    .from('products') // <-- change to your table name if different
+    .from('products')
     .select('id, name, price, image_url, category')
-    .order('name', { ascending: true });
+    .order('name', { ascending: true })
 
   if (error) {
-    // Render a friendly error on the page
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
         <h1>Products</h1>
@@ -27,10 +26,10 @@ export default async function ProductsPage() {
           Failed to load products: {error.message}
         </p>
       </main>
-    );
+    )
   }
 
-  const products = (data ?? []) as Product[];
+  const products = (data ?? []) as Product[]
 
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
@@ -47,7 +46,7 @@ export default async function ProductsPage() {
           }}
         >
           {products.map((p) => (
-            <article key={String(p.id)} className="card">
+            <article key={p.id} className="card">
               {/* Image */}
               {p.image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -73,10 +72,10 @@ export default async function ProductsPage() {
                 </div>
               ) : null}
 
-              {/* Price */}
+              {/* Price (₹ for INR as per your example) */}
               <div style={{ fontWeight: 600 }}>
                 {typeof p.price === 'number'
-                  ? `₹${p.price.toLocaleString()}`
+                  ? `₹${p.price.toLocaleString('en-IN')}`
                   : '—'}
               </div>
             </article>
@@ -84,5 +83,5 @@ export default async function ProductsPage() {
         </section>
       )}
     </main>
-  );
+  )
 }
