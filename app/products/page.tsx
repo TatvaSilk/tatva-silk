@@ -1,4 +1,5 @@
 // app/products/page.tsx
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 
 export const revalidate = 30 // Rebuild at most once every 30s
@@ -31,7 +32,6 @@ function pickFirstImage(p: Product) {
 }
 
 export default async function ProductsPage() {
-  // Fetch products + related images (requires FK)
   const { data, error } = await supabase
     .from('products')
     .select(`
@@ -81,18 +81,25 @@ export default async function ProductsPage() {
               <article key={p.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
                 {/* Image */}
                 {firstImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={firstImage.url!}
-                    alt={firstImage.alt ?? p.name ?? 'Product image'}
+                  <div
                     style={{
+                      position: 'relative',
                       width: '100%',
                       height: 180,
-                      objectFit: 'cover',
                       borderRadius: 8,
+                      overflow: 'hidden',
                       marginBottom: 8
                     }}
-                  />
+                  >
+                    <Image
+                      src={firstImage.url!}
+                      alt={firstImage.alt ?? p.name ?? 'Product image'}
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      style={{ objectFit: 'cover' }}
+                      priority={false}
+                    />
+                  </div>
                 ) : null}
 
                 {/* Name */}
