@@ -10,10 +10,18 @@ export default function HeroBanner() {
           <div className="hero-content">
             <h2>Fast shipping on beautiful silk sarees</h2>
             <p>Discover Tatva Silk collections curated from Billimora, Navsari.</p>
-            /productsShop Now</Link>
+            <Link href="/products" className="cta">Shop Now</Link>
           </div>
+
           <div style={{ position: 'relative', minHeight: 220 }}>
-            https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=1200&q=80&auto=format&fit=crop
+            <Image
+              src="https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=1200&q=80&auto=format&fit=crop"
+              alt="Silk saree hero"
+              fill
+              sizes="(max-width: 1024px) 100vw, 50vw"
+              style={{ objectFit: 'cover' }}
+              priority
+            />
           </div>
         </div>
       </div>
