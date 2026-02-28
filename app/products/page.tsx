@@ -10,6 +10,8 @@ type Product = {
   original_price: number | null
   offer_price: number | null
   stock: number | null
+  is_active?: boolean | null
+  product_images?: { url: string | null; alt: string | null; sort_order: number | null }[]
 }
 
 function formatInr(n: number | null | undefined) {
@@ -17,12 +19,32 @@ function formatInr(n: number | null | undefined) {
   return `₹${n.toLocaleString('en-IN')}`
 }
 
+function isValidHttpUrl(u?: string | null) {
+  return typeof u === 'string' && /^https?:\/\//i.test(u)
+}
+
+function pickFirstImage(p: Product) {
+  const imgs = (p.product_images ?? [])
+    .filter((img) => isValidHttpUrl(img.url))
+    .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
+  return imgs[0] ?? null
+}
+
 export default async function ProductsPage() {
-  // Only select columns that exist in your table
+  // Fetch products + related images (requires FK)
   const { data, error } = await supabase
     .from('products')
-    .select('id, name, category, original_price, offer_price, stock, is_active')
-    .eq('is_active', true) // show only active items
+    .select(`
+      id,
+      name,
+      category,
+      original_price,
+      offer_price,
+      stock,
+      is_active,
+      product_images ( url, alt, sort_order )
+    `)
+    .eq('is_active', true)
     .order('name', { ascending: true })
 
   if (error) {
@@ -46,28 +68,43 @@ export default async function ProductsPage() {
         <section
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
             gap: 16
           }}
         >
           {products.map((p) => {
             const effectivePrice =
               typeof p.offer_price === 'number' ? p.offer_price : p.original_price
+            const firstImage = pickFirstImage(p)
 
             return (
-              <article key={p.id} className="card" style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
+              <article key={p.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
+                {/* Image */}
+                {firstImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={firstImage.url!}
+                    alt={firstImage.alt ?? p.name ?? 'Product image'}
+                    style={{
+                      width: '100%',
+                      height: 180,
+                      objectFit: 'cover',
+                      borderRadius: 8,
+                      marginBottom: 8
+                    }}
+                  />
+                ) : null}
+
                 {/* Name */}
                 <h3 style={{ margin: '8px 0 4px' }}>{p.name ?? 'Untitled'}</h3>
 
-                {/* Category (optional) */}
+                {/* Category */}
                 {p.category ? (
-                  <div style={{ color: '#777', fontSize: 12, marginBottom: 6 }}>
-                    {p.category}
-                  </div>
+                  <div style={{ color: '#777', fontSize: 12, marginBottom: 6 }}>{p.category}</div>
                 ) : null}
 
-                {/* Price (offer → original) */}
-                <div style={{ fontWeight: 600, marginTop: 6 }}>
+                {/* Price */}
+                <div style={{ fontWeight: 600 }}>
                   {formatInr(effectivePrice)}
                   {typeof p.offer_price === 'number' && typeof p.original_price === 'number' ? (
                     <span style={{ color: '#888', marginLeft: 8, textDecoration: 'line-through', fontWeight: 400 }}>
@@ -76,14 +113,12 @@ export default async function ProductsPage() {
                   ) : null}
                 </div>
 
-                {/* Stock (optional) */}
+                {/* Stock */}
                 {typeof p.stock === 'number' ? (
-                  <div style={{ color: '#555', fontSize: 12, marginTop: 6 }}>
-                    Stock: {p.stock}
-                  </div>
+                  <div style={{ color: '#555', fontSize: 12, marginTop: 6 }}>Stock: {p.stock}</div>
                 ) : null}
 
-                {/* Link to detail page — we’ll implement [id] route next */}
+                {/* Link */}
                 <div style={{ marginTop: 10 }}>
                   <a href={`/products/${p.id}`} style={{ color: '#2563eb' }}>
                     View details →
