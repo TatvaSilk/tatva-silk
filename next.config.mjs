@@ -1,23 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    // Add every remote domain you will load images from
     remotePatterns: [
-      // Unsplash (your test image)
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
-      },
-      // Supabase Storage public bucket (replace with your actual project ref)
-      // You can find the "project-ref" in your Supabase project URL.
-      {
-        protocol: 'https',
-        hostname: '**.supabase.co',
-      },
-      // If you plan to store images elsewhere, add the domains here
-      // { protocol: 'https', hostname: 'your-cdn.example.com' },
+      // Unsplash (your test image domain)
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+
+      // Supabase Storage (replace `YOUR-PROJECT-REF` with your real project ref)
+      // Find it in your Supabase project URL: https://YOUR-PROJECT-REF.supabase.co
+      { protocol: 'https', hostname: 'YOUR-PROJECT-REF.supabase.co' },
+
+      // If you use any other image host/CDN, add it here too.
+      // { protocol: 'https', hostname: 'cdn.example.com' },
     ],
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;
