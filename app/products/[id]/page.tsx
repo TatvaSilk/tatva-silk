@@ -33,13 +33,12 @@ function isValidHttpUrl(u?: string | null) {
 }
 
 function sortAndFilterImages(images: ProductImage[] = []) {
-  // remove empty/bad URLs and sort by sort_order (nulls last)
   return images
     .filter((img) => isValidHttpUrl(img.url))
     .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
 }
 
-// ---- Optional: SEO, show product name in tab title
+// SEO title
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const { data } = await supabase
     .from('products')
@@ -53,7 +52,6 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 export default async function ProductDetailPage({ params }: { params: { id: string } }) {
   const productId = params.id
 
-  // Fetch one product + its images
   const { data, error } = await supabase
     .from('products')
     .select(`
@@ -65,11 +63,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
       offer_price,
       stock,
       is_active,
-      product_images (
-        url,
-        alt,
-        sort_order
-      )
+      product_images ( url, alt, sort_order )
     `)
     .eq('id', productId)
     .limit(1)
@@ -110,7 +104,6 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
         <div>
           {mainImage ? (
             <div style={{ display: 'grid', gap: 12 }}>
-              {/* Main image */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={mainImage.url!}
@@ -123,8 +116,6 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
                   border: '1px solid #eee'
                 }}
               />
-
-              {/* Thumbnails (only render when we actually have any) */}
               {thumbnails.length > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 8 }}>
                   {thumbnails.map((img, i) => (
