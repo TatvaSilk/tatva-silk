@@ -1,14 +1,17 @@
-export const metadata = {
+// app/layout.tsx
+import './globals.css'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
   title: 'Tatva Silk & Shubh Vivah',
-  description: 'Ethnic wear — Saree • Chaniya Choli • Kurti'
-};
+  description: 'Fast shipping on beautiful silk sarees — curated selections.',
+  metadataBase: new URL('https://tatva-silk.vercel.app'), // update if you have a custom domain
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body style={{ margin: 0, fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif' }}>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
-  );
+  )
 }
