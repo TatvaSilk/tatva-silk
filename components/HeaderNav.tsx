@@ -57,8 +57,12 @@ export default function HeaderNav() {
 
         {/* Account + Orders */}
         <div className="account hide-md" style={{ display: 'flex', gap: 10 }}>
-          <Link href="/admin" className="nav-link">Account &amp; Lists</Link>
-          <Link href="/orders" className="nav-link"><strong>Orders</strong></Link>
+          <Link href="/admin" className="nav-link">
+            Account &amp; Lists
+          </Link>
+          <Link href="/orders" className="nav-link">
+            <strong>Orders</strong>
+          </Link>
         </div>
 
         {/* Cart */}
@@ -66,3 +70,4 @@ export default function HeaderNav() {
       </div>
     </header>
   )
+}
