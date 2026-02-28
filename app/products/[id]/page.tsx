@@ -1,12 +1,12 @@
 // app/products/[id]/page.tsx
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { Metadata } from 'next'
 
-// Revalidate each product page at most every 60s (ISR)
 export const revalidate = 60
 
 type ProductImage = {
-  url: string
+  url: string | null
   alt: string | null
   sort_order: number | null
 }
@@ -28,42 +28,35 @@ function formatInr(n: number | null | undefined) {
   return `₹${n.toLocaleString('en-IN')}`
 }
 
-function pickSortedImages(images: ProductImage[] = []) {
+function isValidHttpUrl(u?: string | null) {
+  return typeof u === 'string' && /^https?:\/\//i.test(u)
+}
+
+function sortAndFilterImages(images: ProductImage[] = []) {
+  // remove empty/bad URLs and sort by sort_order (nulls last)
   return images
-    .slice()
+    .filter((img) => isValidHttpUrl(img.url))
     .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
 }
 
-// --- Optional: SEO metadata (title shows product name) ---
-export async function generateMetadata({
-  params
-}: {
-  params: { id: string }
-}): Promise<Metadata> {
+// ---- Optional: SEO, show product name in tab title
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const { data } = await supabase
     .from('products')
     .select('name')
     .eq('id', params.id)
     .single()
 
-  return {
-    title: data?.name ? `${data.name} • Tatva Silk` : 'Product • Tatva Silk'
-  }
+  return { title: data?.name ? `${data.name} • Tatva Silk` : 'Product • Tatva Silk' }
 }
 
-// --- Page component ---
-export default async function ProductDetailPage({
-  params
-}: {
-  params: { id: string }
-}) {
+export default async function ProductDetailPage({ params }: { params: { id: string } }) {
   const productId = params.id
 
   // Fetch one product + its images
   const { data, error } = await supabase
     .from('products')
-    .select(
-      `
+    .select(`
       id,
       name,
       description,
@@ -77,17 +70,15 @@ export default async function ProductDetailPage({
         alt,
         sort_order
       )
-    `
-    )
+    `)
     .eq('id', productId)
     .limit(1)
     .single()
 
   if (error) {
-    // You can customize this error UI
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        <a href="/products" style={{ color: '#2563eb' }}>← Back to products</a>
+        <Link href="/products">← Back to products</Link>
         <h1 style={{ marginTop: 12 }}>Product</h1>
         <p style={{ color: 'crimson' }}>Failed to load product: {error.message}</p>
       </main>
@@ -95,36 +86,35 @@ export default async function ProductDetailPage({
   }
 
   const p = (data ?? {}) as Product
-
-  // If not active or missing, show a friendly not-found
   if (!p?.id || p.is_active === false) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        <a href="/products" style={{ color: '#2563eb' }}>← Back to products</a>
+        <Link href="/products">← Back to products</Link>
         <h1 style={{ marginTop: 12 }}>Product not found</h1>
         <p style={{ color: '#666' }}>This product does not exist or is inactive.</p>
       </main>
     )
   }
 
-  const images = pickSortedImages(p.product_images ?? [])
-  const effectivePrice =
-    typeof p.offer_price === 'number' ? p.offer_price : p.original_price
+  const images = sortAndFilterImages(p.product_images ?? [])
+  const mainImage = images[0] ?? null
+  const thumbnails = images.slice(1)
+  const effectivePrice = typeof p.offer_price === 'number' ? p.offer_price : p.original_price
 
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-      <a href="/products" style={{ color: '#2563eb' }}>← Back to products</a>
+      <Link href="/products">← Back to products</Link>
 
       <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 16 }}>
         {/* Left: Image gallery */}
         <div>
-          {images.length > 0 ? (
+          {mainImage ? (
             <div style={{ display: 'grid', gap: 12 }}>
               {/* Main image */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={images[0].url}
-                alt={images[0].alt ?? p.name ?? 'Product image'}
+                src={mainImage.url!}
+                alt={mainImage.alt ?? p.name ?? 'Product image'}
                 style={{
                   width: '100%',
                   height: 420,
@@ -133,14 +123,15 @@ export default async function ProductDetailPage({
                   border: '1px solid #eee'
                 }}
               />
-              {/* Thumbnails (if more) */}
-              {images.length > 1 ? (
+
+              {/* Thumbnails (only render when we actually have any) */}
+              {thumbnails.length > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 8 }}>
-                  {images.slice(1).map((img, i) => (
+                  {thumbnails.map((img, i) => (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       key={i}
-                      src={img.url}
+                      src={img.url!}
                       alt={img.alt ?? p.name ?? 'Product image'}
                       style={{
                         width: '100%',
@@ -176,9 +167,7 @@ export default async function ProductDetailPage({
         <div>
           <h1 style={{ margin: '0 0 6px' }}>{p.name ?? 'Untitled'}</h1>
           {p.category ? (
-            <div style={{ color: '#777', fontSize: 14, marginBottom: 12 }}>
-              {p.category}
-            </div>
+            <div style={{ color: '#777', fontSize: 14, marginBottom: 12 }}>{p.category}</div>
           ) : null}
 
           <div style={{ fontSize: 22, fontWeight: 700 }}>
@@ -190,21 +179,11 @@ export default async function ProductDetailPage({
             ) : null}
           </div>
 
-          {/* Stock */}
           {typeof p.stock === 'number' ? (
-            <div style={{ color: '#555', fontSize: 14, marginTop: 8 }}>
-              Stock: {p.stock}
-            </div>
+            <div style={{ color: '#555', fontSize: 14, marginTop: 8 }}>Stock: {p.stock}</div>
           ) : null}
 
-          {/* Description */}
-          {p.description ? (
-            <div style={{ marginTop: 16, lineHeight: 1.6 }}>
-              {p.description}
-            </div>
-          ) : null}
-
-          {/* (Future) Add to cart button could go here */}
+          {p.description ? <div style={{ marginTop: 16, lineHeight: 1.6 }}>{p.description}</div> : null}
         </div>
       </section>
     </main>
