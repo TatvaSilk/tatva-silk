@@ -37,7 +37,7 @@ export default function HeaderNav() {
 
         {/* Search */}
         <form className="search" onSubmit={onSearch}>
-          <select defaultValue="all">
+          <select defaultValue="all" aria-label="Search category">
             <option value="all">All</option>
             <option value="saree">Saree</option>
             <option value="banarasi">Banarasi</option>
@@ -56,9 +56,9 @@ export default function HeaderNav() {
         </div>
 
         {/* Account + Orders */}
-        <div className="account hide-md">
-          <Link href="/admin">Account &amp; Lists</Link>
-          <strong>Orders</strong>
+        <div className="account hide-md" style={{ display: 'flex', gap: 10 }}>
+          <Link href="/admin" className="nav-link">Account &amp; Lists</Link>
+          <Link href="/orders" className="nav-link"><strong>Orders</strong></Link>
         </div>
 
         {/* Cart */}
@@ -66,4 +66,3 @@ export default function HeaderNav() {
       </div>
     </header>
   )
-}
