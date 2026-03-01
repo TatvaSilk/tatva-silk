@@ -2,33 +2,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-// Use Node.js runtime (safe with supabase-js)
 export const runtime = 'nodejs'
 
-// --------------
-// Lightweight fallback labels (you can delete later)
-// --------------
-const FALLBACK: Record<string, { label: string; state?: string; district?: string }> = {
-  '396321': { label: 'Billimora, Navsari, Gujarat', district: 'Navsari', state: 'Gujarat' },
-  '395003': { label: 'Surat, Gujarat', district: 'Surat', state: 'Gujarat' },
-  '396445': { label: 'Navsari, Gujarat', district: 'Navsari', state: 'Gujarat' },
+// In-process micro-cache (pin -> label). Resets on cold start/redeploy.
+const MEMO = new Map<string, string>()
+
+// Small fallback while you build out the table (optional)
+const FALLBACK: Record<string, string> = {
+  '396321': 'Billimora, Navsari, Gujarat',
+  '395003': 'Surat, Gujarat',
+  '396445': 'Navsari, Gujarat',
 }
 
 type ApiResult = {
   ok: boolean
   pin: string
   label: string
-  source: 'supabase' | 'fallback' | 'synthetic'
-  data?: any
+  source: 'mem' | 'supabase' | 'fallback' | 'synthetic'
   message?: string
 }
 
-/**
- * GET /api/pincode?pin=396321
- * Returns a label like "Billimora, Navsari, Gujarat" if known.
- * If you create a `pincodes` table in Supabase (see SQL we shared earlier), this API
- * will automatically use it; otherwise it falls back to the local map above.
- */
 export async function GET(req: NextRequest) {
   const pin = new URL(req.url).searchParams.get('pin')?.trim() ?? ''
   if (!/^\d{6}$/.test(pin)) {
@@ -38,57 +31,52 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // Try Supabase table first (if you created/imported it)
+  // 1) memory cache
+  const memo = MEMO.get(pin)
+  if (memo) {
+    return NextResponse.json(
+      { ok: true, pin, label: memo, source: 'mem' } as ApiResult,
+      { status: 200, headers: { 'cache-control': 'public, s-maxage=86400, stale-while-revalidate=86400' } }
+    )
+  }
+
+  // 2) DB lookup
   try {
-    // Expected schema: public.pincodes(pin text, office_name text, district text, state text, delivery boolean)
     const { data, error } = await supabase
       .from('pincodes')
-      .select('pin, office_name, district, state, delivery')
+      .select('district,state')
       .eq('pin', pin)
       .limit(1)
       .maybeSingle()
 
     if (!error && data) {
-      const parts = [
-        data.office_name?.trim(),
-        data.district?.trim(),
-        data.state?.trim(),
-      ].filter(Boolean)
+      const parts = [data.district?.trim(), data.state?.trim()].filter(Boolean)
       const label = parts.length ? parts.join(', ') : `PIN ${pin}`
-
-      return new NextResponse(
-        JSON.stringify({ ok: true, pin, label, source: 'supabase', data } satisfies ApiResult),
-        {
-          status: 200,
-          headers: {
-            'content-type': 'application/json',
-            'cache-control': 'public, s-maxage=86400, stale-while-revalidate=86400',
-          },
-        }
+      MEMO.set(pin, label)
+      return NextResponse.json(
+        { ok: true, pin, label, source: 'supabase' } as ApiResult,
+        { status: 200, headers: { 'cache-control': 'public, s-maxage=86400, stale-while-revalidate=86400' } }
       )
     }
   } catch {
-    // Ignore and fall back
+    // ignore and fallback
   }
 
-  // Fallback map
-  const fallback = FALLBACK[pin]
-  if (fallback) {
+  // 3) fallback
+  const fb = FALLBACK[pin]
+  if (fb) {
+    MEMO.set(pin, fb)
     return NextResponse.json(
-      { ok: true, pin, label: fallback.label, source: 'fallback', data: fallback } as ApiResult,
-      {
-        status: 200,
-        headers: { 'cache-control': 'public, s-maxage=86400, stale-while-revalidate=86400' },
-      }
+      { ok: true, pin, label: fb, source: 'fallback' } as ApiResult,
+      { status: 200, headers: { 'cache-control': 'public, s-maxage=86400, stale-while-revalidate=86400' } }
     )
   }
 
-  // Unknown pin → still return a valid label so UI works
+  // 4) unknown but valid: still return a label to keep UX smooth
+  const synthetic = `PIN ${pin}`
+  MEMO.set(pin, synthetic)
   return NextResponse.json(
-    { ok: true, pin, label: `PIN ${pin}`, source: 'synthetic' } as ApiResult,
-    {
-      status: 200,
-      headers: { 'cache-control': 'public, s-maxage=300, stale-while-revalidate=300' },
-    }
+    { ok: true, pin, label: synthetic, source: 'synthetic' } as ApiResult,
+    { status: 200, headers: { 'cache-control': 'public, s-maxage=300, stale-while-revalidate=300' } }
   )
 }
