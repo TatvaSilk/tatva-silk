@@ -1,5 +1,5 @@
 // app/api/pincode/route.ts
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
 // Use Node.js runtime (safe with supabase-js)
@@ -26,21 +26,21 @@ type ApiResult = {
 /**
  * GET /api/pincode?pin=396321
  * Returns a label like "Billimora, Navsari, Gujarat" if known.
- * If you create a `pincodes` table in Supabase (see SQL below), this API will
- * automatically use it; otherwise it falls back to the small local map above.
+ * If you create a `pincodes` table in Supabase (see SQL we shared earlier), this API
+ * will automatically use it; otherwise it falls back to the local map above.
  */
 export async function GET(req: NextRequest) {
   const pin = new URL(req.url).searchParams.get('pin')?.trim() ?? ''
   if (!/^\d{6}$/.test(pin)) {
-    return Response.json<ApiResult>(
-      { ok: false, pin, label: '', source: 'synthetic', message: 'Invalid PIN (expect 6 digits)' },
+    return NextResponse.json(
+      { ok: false, pin, label: '', source: 'synthetic', message: 'Invalid PIN (expect 6 digits)' } as ApiResult,
       { status: 400 }
     )
   }
 
-  // Try Supabase table first (if you created it)
+  // Try Supabase table first (if you created/imported it)
   try {
-    // We expect a table like: public.pincodes(pin text, office_name text, district text, state text, delivery boolean)
+    // Expected schema: public.pincodes(pin text, office_name text, district text, state text, delivery boolean)
     const { data, error } = await supabase
       .from('pincodes')
       .select('pin, office_name, district, state, delivery')
@@ -55,27 +55,27 @@ export async function GET(req: NextRequest) {
         data.state?.trim(),
       ].filter(Boolean)
       const label = parts.length ? parts.join(', ') : `PIN ${pin}`
-      return new Response(
+
+      return new NextResponse(
         JSON.stringify({ ok: true, pin, label, source: 'supabase', data } satisfies ApiResult),
         {
           status: 200,
           headers: {
             'content-type': 'application/json',
-            // Cache for 1 day at the CDN; disable stale if you plan frequent updates.
             'cache-control': 'public, s-maxage=86400, stale-while-revalidate=86400',
           },
         }
       )
     }
   } catch {
-    // ignore and fall back
+    // Ignore and fall back
   }
 
-  // Fallback label (small local map)
+  // Fallback map
   const fallback = FALLBACK[pin]
   if (fallback) {
-    return Response.json<ApiResult>(
-      { ok: true, pin, label: fallback.label, source: 'fallback', data: fallback },
+    return NextResponse.json(
+      { ok: true, pin, label: fallback.label, source: 'fallback', data: fallback } as ApiResult,
       {
         status: 200,
         headers: { 'cache-control': 'public, s-maxage=86400, stale-while-revalidate=86400' },
@@ -83,9 +83,9 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // If unknown, return a generic but valid label (so UI still works)
-  return Response.json<ApiResult>(
-    { ok: true, pin, label: `PIN ${pin}`, source: 'synthetic' },
+  // Unknown pin → still return a valid label so UI works
+  return NextResponse.json(
+    { ok: true, pin, label: `PIN ${pin}`, source: 'synthetic' } as ApiResult,
     {
       status: 200,
       headers: { 'cache-control': 'public, s-maxage=300, stale-while-revalidate=300' },
