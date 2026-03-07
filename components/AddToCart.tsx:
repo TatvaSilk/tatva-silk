@@ -1,0 +1,68 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+
+export default function AddToCart({
+  productId,
+  inStock,
+  variantId,
+}: {
+  productId: string
+  inStock: boolean
+  variantId?: string | null
+}) {
+  const [pending, startTransition] = useTransition()
+  const [qty, setQty] = useState(1)
+
+  function add() {
+    if (!inStock) return
+    startTransition(async () => {
+      const res = await fetch('/api/cart/add', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ productId, variantId, qty }),
+      })
+      // TODO: You can show a toast or a small message here on success.
+    })
+  }
+
+  async function buyNow() {
+    add()
+    // If you have a checkout page ready, redirect there.
+    // For now, this will still navigate to /checkout (you can build it next).
+    window.location.href = '/checkout'
+  }
+
+  return (
+    <div className="mt-6 space-y-3">
+      <div className="flex items-center gap-2">
+        <label className="text-sm">Qty</label>
+        <input
+          type="number"
+          min={1}
+          value={qty}
+          onChange={(e) => setQty(Math.max(1, Number(e.target.value)))}
+          className="w-20 border rounded px-2 py-1"
+        />
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <button
+          onClick={add}
+          disabled={!inStock || pending}
+          className="bg-black text-white px-5 py-3 rounded disabled:opacity-50"
+        >
+          {pending ? 'Adding…' : 'Add to Cart'}
+        </button>
+
+        <button
+          onClick={buyNow}
+          disabled={!inStock || pending}
+          className="bg-amber-600 text-white px-5 py-3 rounded disabled:opacity-50"
+        >
+          {pending ? 'Please wait…' : 'Buy Now'}
+        </button>
+      </div>
+    </div>
+  )
+}
