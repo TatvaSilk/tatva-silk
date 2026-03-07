@@ -17,40 +17,45 @@ export default function AddToCart({
   function add() {
     if (!inStock) return
     startTransition(async () => {
-      const res = await fetch('/api/cart/add', {
+      await fetch('/api/cart/add', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ productId, variantId, qty }),
       })
-      // TODO: You can show a toast or a small message here on success.
+      // TODO: show a toast if you like
     })
   }
 
   async function buyNow() {
     add()
-    // If you have a checkout page ready, redirect there.
-    // For now, this will still navigate to /checkout (you can build it next).
+    // Navigate to checkout (implement /checkout later if not ready)
     window.location.href = '/checkout'
   }
 
   return (
-    <div className="mt-6 space-y-3">
-      <div className="flex items-center gap-2">
-        <label className="text-sm">Qty</label>
+    <div style={{ marginTop: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <label style={{ fontSize: 14 }}>Qty</label>
         <input
           type="number"
           min={1}
           value={qty}
           onChange={(e) => setQty(Math.max(1, Number(e.target.value)))}
-          className="w-20 border rounded px-2 py-1"
+          style={{ width: 72, border: '1px solid #ddd', borderRadius: 6, padding: '6px 8px' }}
         />
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         <button
           onClick={add}
           disabled={!inStock || pending}
-          className="bg-black text-white px-5 py-3 rounded disabled:opacity-50"
+          style={{
+            background: '#000',
+            color: '#fff',
+            padding: '10px 16px',
+            borderRadius: 6,
+            opacity: !inStock || pending ? 0.6 : 1,
+          }}
         >
           {pending ? 'Adding…' : 'Add to Cart'}
         </button>
@@ -58,7 +63,13 @@ export default function AddToCart({
         <button
           onClick={buyNow}
           disabled={!inStock || pending}
-          className="bg-amber-600 text-white px-5 py-3 rounded disabled:opacity-50"
+          style={{
+            background: '#d97706',
+            color: '#fff',
+            padding: '10px 16px',
+            borderRadius: 6,
+            opacity: !inStock || pending ? 0.6 : 1,
+          }}
         >
           {pending ? 'Please wait…' : 'Buy Now'}
         </button>
