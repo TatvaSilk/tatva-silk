@@ -55,7 +55,6 @@ export default async function ProductsPage({
     `)
     .eq('is_active', true)
 
-  // If category filter is provided, apply it
   if (category && category.trim().length > 0) {
     query = query.eq('category', category)
   }
@@ -78,13 +77,12 @@ export default async function ProductsPage({
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <h1 style={{ margin: 0 }}>Products</h1>
-        {/* Show active filter and a clear button */}
         {category ? (
           <div style={{ fontSize: 14, color: '#555' }}>
             <span>Filtered by: </span>
             <strong style={{ textTransform: 'capitalize' }}>{category}</strong>
             <span style={{ margin: '0 8px' }}>|</span>
-            <Link href="/products" className="hover:underline">Clear filter</Link>
+            <Link href="/products">Clear filter</Link>
           </div>
         ) : null}
       </div>
@@ -108,7 +106,6 @@ export default async function ProductsPage({
 
             return (
               <article key={p.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
-                {/* Image */}
                 {firstImage ? (
                   <div
                     style={{
@@ -131,10 +128,8 @@ export default async function ProductsPage({
                   </div>
                 ) : null}
 
-                {/* Name */}
                 <h3 style={{ margin: '8px 0 4px' }}>{p.name ?? 'Untitled'}</h3>
 
-                {/* Category */}
                 {p.category ? (
                   <div style={{ color: '#777', fontSize: 12, marginBottom: 6 }}>
                     <Link
@@ -146,7 +141,6 @@ export default async function ProductsPage({
                   </div>
                 ) : null}
 
-                {/* Price */}
                 <div style={{ fontWeight: 600 }}>
                   {formatInr(effectivePrice)}
                   {typeof p.offer_price === 'number' && typeof p.original_price === 'number' ? (
@@ -156,13 +150,21 @@ export default async function ProductsPage({
                   ) : null}
                 </div>
 
-                {/* Stock */}
                 {typeof p.stock === 'number' ? (
                   <div style={{ color: '#555', fontSize: 12, marginTop: 6 }}>Stock: {p.stock}</div>
                 ) : null}
 
-                {/* Link */}
                 <div style={{ marginTop: 10 }}>
                   <Link href={`/products/${p.id}`} style={{ color: '#2563eb' }}>
                     View details →
                   </Link>
+                </div>
+              </article>
+            )
+          })}
+        </section>
+      )}
+    </main>
+  )
+}
+``
