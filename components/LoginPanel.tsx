@@ -15,15 +15,22 @@ export default function LoginPanel() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  async function login(e: any) {
+  async function login(e: React.FormEvent) {
     e.preventDefault()
     setMsg(null)
     setLoading(true)
 
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    // If Confirm Email is ON, Supabase returns an error until the user confirms.
-    if (error) setMsg(error.message)  // we can refine messaging below
-    else window.location.href = '/account'
+    // If “Confirm email” is enabled in Supabase, unverified users will get an error here.
+    if (error) {
+      // Show a friendlier message if it's a “confirm your email” case
+      const text = String(error.message || '')
+      setMsg(text.toLowerCase().includes('confirm')
+        ? 'Please verify your email. Check your inbox.'
+        : text)
+    } else {
+      window.location.href = '/account'
+    }
     setLoading(false)
   }
 
@@ -31,40 +38,65 @@ export default function LoginPanel() {
     setMsg(null)
     const redirectTo =
       typeof window !== 'undefined' ? window.location.origin + '/account' : undefined
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } })
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo }
+    })
     if (error) setMsg(error.message)
   }
 
   return (
     <div>
       <form onSubmit={login} style={{ display: 'grid', gap: 10, marginTop: 20 }}>
-        <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        <button disabled={loading} style={{ background: 'black', color: 'white', padding: 10 }}>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+
+        <button
+          disabled={loading}
+          style={{ background: 'black', color: 'white', padding: 10, borderRadius: 6 }}
+        >
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
 
-      {/* Friendly error for unverified email */}
-      {msg && (
-        <p style={{ marginTop: 12, color: 'crimson' }}>
-          {msg.includes('confirm') ? 'Please verify your email. Check your inbox.' : msg}
-        </p>
-      )}
+      {msg && <p style={{ marginTop: 12, color: 'crimson' }}>{msg}</p>}
 
       <p style={{ marginTop: 12 }}>
-        /account/forgotForgot password?</Link>
+        <Link href="/account/forgot">Forgot password?</Link>
       </p>
       <p style={{ marginTop: 8 }}>
-        Don&apos;t have an account? /account/signupCreate one</Link>
+        Don&apos;t have an account? <Link href="/account/signup">Create one</Link>
       </p>
 
       <div style={{ margin: '20px 0', color: '#aaa' }}>— or —</div>
 
       <button
         onClick={signInWithGoogle}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid #ddd', padding: '10px 14px', borderRadius: 6 }}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          background: '#fff',
+          border: '1px solid #ddd',
+          padding: '10px 14px',
+          borderRadius: 6
+        }}
       >
+        {/* Google “G” icon (inline SVG) */}
         <svg width="18" height="18" viewBox="0 0 533.5 544.3" aria-hidden>
           <path fill="#4285F4" d="M533.5 278.4c0-17.4-1.6-34.1-4.6-50.4H272v95.5h147.1c-6.4 34.6-25.8 63.9-55 83.5v69h88.9c52.1-48 80.5-118.6 80.5-197.6z"/>
           <path fill="#34A853" d="M272 544.3c72.8 0 134-24.1 178.6-65.4l-88.9-69c-24.7 16.6-56.3 26.4-89.7 26.4-68.9 0-127.3-46.5-148.1-109.1H33.3v68.5C78.5 487 170.9 544.3 272 544.3z"/>
