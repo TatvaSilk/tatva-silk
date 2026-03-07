@@ -29,7 +29,7 @@ export default function LoginPanel() {
         ? 'Please verify your email. Check your inbox.'
         : text)
     } else {
-      window.location.href = '/account'
+      window.location.href = '/'
     }
     setLoading(false)
   }
@@ -37,7 +37,7 @@ export default function LoginPanel() {
   async function signInWithGoogle() {
     setMsg(null)
     const redirectTo =
-      typeof window !== 'undefined' ? window.location.origin + '/account' : undefined
+      typeof window !== 'undefined' ? window.location.origin + '/' : undefined
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
