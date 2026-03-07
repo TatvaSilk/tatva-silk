@@ -23,27 +23,17 @@ type ApiResult = {
 }
 
 function json(data: ApiResult, init?: number | ResponseInit) {
-  const defaultHeaders = {
-    'content-type': 'application/json; charset=utf-8',
-  }
-  if (typeof init === 'number') {
-    return NextResponse.json(data, { status: init, headers: defaultHeaders })
-  }
-  return NextResponse.json(data, {
-    ...(init as ResponseInit),
-    headers: { ...defaultHeaders, ...(init as ResponseInit)?.headers },
-  })
+  const headers = { 'content-type': 'application/json; charset=utf-8' }
+  if (typeof init === 'number') return NextResponse.json(data, { status: init, headers })
+  return NextResponse.json(data, { ...(init as ResponseInit), headers: { ...headers, ...(init as ResponseInit)?.headers } })
 }
 
 export async function GET(req: NextRequest) {
   const pin = new URL(req.url).searchParams.get('pin')?.trim() ?? ''
 
-  // 0) basic validation
+  // 0) validate (India PIN = 6 digits)
   if (!/^\d{6}$/.test(pin)) {
-    return json(
-      { ok: false, pin, label: '', source: 'synthetic', message: 'Invalid PIN (expect 6 digits)' },
-      400
-    )
+    return json({ ok: false, pin, label: '', source: 'synthetic', message: 'Invalid PIN (expect 6 digits)' }, 400)
   }
 
   // 1) memory cache
@@ -55,21 +45,20 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // 2) DB lookup
+  // 2) DB lookup (Anon key only; read-only)
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     const supabase = createClient(url, anon, { auth: { persistSession: false } })
 
-    // Table: pincodes(district text, state text, pin text primary key)
     const { data, error } = await supabase
-      .from('pincodes')
-      .select('district, state')
+      .from('pincodes')            // <-- your table name
+      .select('district, state')   // <-- your columns
       .eq('pin', pin)
       .maybeSingle()
 
     if (error) {
-      // Likely an RLS/policy issue or table missing; return 500 for observability
+      // Usually RLS or table missing
       return json(
         { ok: false, pin, label: '', source: 'synthetic', message: 'Lookup failed' },
         { status: 500, headers: { 'cache-control': 'no-store' } }
@@ -86,7 +75,7 @@ export async function GET(req: NextRequest) {
       )
     }
   } catch {
-    // fallthrough to fallback/synthetic
+    // fall through to fallback
   }
 
   // 3) fallback
@@ -99,7 +88,7 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // 4) unknown but valid: still return a label to keep UX smooth
+  // 4) synthetic label (valid but unknown)
   const synthetic = `PIN ${pin}`
   MEMO.set(pin, synthetic)
   return json(
