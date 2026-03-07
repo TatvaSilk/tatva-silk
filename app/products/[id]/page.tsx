@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import type { Metadata } from 'next'
+import AddToCart from '@/components/AddToCart'
 
 export const revalidate = 60
 
@@ -16,7 +17,7 @@ type Product = {
   id: string
   name: string | null
   description: string | null
-  category: string | null
+  category: string | null             // e.g., 'banarasi'
   original_price: number | null
   offer_price: number | null
   stock: number | null
@@ -99,9 +100,21 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
 
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-      <Link href="/products">← Back to products</Link>
+      {/* Stronger navigation links */}
+      <div style={{ marginBottom: 8, fontSize: 14 }}>
+        <Link href="/products" className="hover:underline">← Back to products</Link>
+        {p.category ? (
+          <>
+            <span style={{ color: '#aaa', margin: '0 8px' }}>/</span>
+            {/* Link to filtered listing by category */}
+            <Link href={`/products?category=${encodeURIComponent(p.category)}`} className="hover:underline">
+              {p.category}
+            </Link>
+          </>
+        ) : null}
+      </div>
 
-      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 16 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 8 }}>
         {/* Left: Image gallery */}
         <div>
           {mainImage ? (
@@ -199,8 +212,16 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
           ) : null}
 
           {p.description ? <div style={{ marginTop: 16, lineHeight: 1.6 }}>{p.description}</div> : null}
+
+          {/* ===== Add to Cart / Buy Now buttons ===== */}
+          <AddToCart
+            productId={String(p.id)}
+            inStock={(p.stock ?? 0) > 0}
+            variantId={undefined}  // wire when variants are ready
+          />
         </div>
       </section>
     </main>
   )
 }
+``
