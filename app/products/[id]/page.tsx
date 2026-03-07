@@ -17,7 +17,7 @@ type Product = {
   id: string
   name: string | null
   description: string | null
-  category: string | null             // e.g., 'banarasi'
+  category: string | null
   original_price: number | null
   offer_price: number | null
   stock: number | null
@@ -35,13 +35,11 @@ function isValidHttpUrl(u?: string | null) {
 }
 
 function sortAndFilterImages(images: ProductImage[] = []) {
-  // keep only http(s) and sort by sort_order (nulls last)
   return images
     .filter((img) => isValidHttpUrl(img.url))
     .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
 }
 
-// SEO title
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const { data } = await supabase
     .from('products')
@@ -100,13 +98,11 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
 
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-      {/* Stronger navigation links */}
       <div style={{ marginBottom: 8, fontSize: 14 }}>
-        <Link href="/products" className="hover:underline">← Back to products</Link>
+        <Link href="/products">← Back to products</Link>
         {p.category ? (
           <>
             <span style={{ color: '#aaa', margin: '0 8px' }}>/</span>
-            {/* Link to filtered listing by category */}
             <Link href={`/products?category=${encodeURIComponent(p.category)}`} className="hover:underline">
               {p.category}
             </Link>
@@ -119,7 +115,6 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
         <div>
           {mainImage ? (
             <div style={{ display: 'grid', gap: 12 }}>
-              {/* Main image (responsive) */}
               <div
                 style={{
                   position: 'relative',
@@ -140,7 +135,6 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
                 />
               </div>
 
-              {/* Thumbnails */}
               {thumbnails.length > 0 ? (
                 <div
                   style={{
@@ -213,15 +207,14 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
 
           {p.description ? <div style={{ marginTop: 16, lineHeight: 1.6 }}>{p.description}</div> : null}
 
-          {/* ===== Add to Cart / Buy Now buttons ===== */}
+          {/* Buttons */}
           <AddToCart
             productId={String(p.id)}
             inStock={(p.stock ?? 0) > 0}
-            variantId={undefined}  // wire when variants are ready
+            variantId={undefined}
           />
         </div>
       </section>
     </main>
   )
 }
-``
