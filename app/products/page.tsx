@@ -1,5 +1,6 @@
 // app/products/page.tsx
 import Image from 'next/image'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
 export const revalidate = 30 // Rebuild at most once every 30s
@@ -31,8 +32,16 @@ function pickFirstImage(p: Product) {
   return imgs[0] ?? null
 }
 
-export default async function ProductsPage() {
-  const { data, error } = await supabase
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined }
+}) {
+  const category = (Array.isArray(searchParams?.category)
+    ? searchParams?.category[0]
+    : searchParams?.category) as string | undefined
+
+  let query = supabase
     .from('products')
     .select(`
       id,
@@ -45,7 +54,14 @@ export default async function ProductsPage() {
       product_images ( url, alt, sort_order )
     `)
     .eq('is_active', true)
-    .order('name', { ascending: true })
+
+  // If category filter is provided, apply it
+  if (category && category.trim().length > 0) {
+    query = query.eq('category', category)
+  }
+
+  query = query.order('name', { ascending: true })
+  const { data, error } = await query
 
   if (error) {
     return (
@@ -60,10 +76,23 @@ export default async function ProductsPage() {
 
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-      <h1 style={{ marginBottom: 16 }}>Products</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <h1 style={{ margin: 0 }}>Products</h1>
+        {/* Show active filter and a clear button */}
+        {category ? (
+          <div style={{ fontSize: 14, color: '#555' }}>
+            <span>Filtered by: </span>
+            <strong style={{ textTransform: 'capitalize' }}>{category}</strong>
+            <span style={{ margin: '0 8px' }}>|</span>
+            <Link href="/products" className="hover:underline">Clear filter</Link>
+          </div>
+        ) : null}
+      </div>
 
       {products.length === 0 ? (
-        <p style={{ color: '#666' }}>No products found.</p>
+        <p style={{ color: '#666' }}>
+          {category ? `No products found in "${category}".` : 'No products found.'}
+        </p>
       ) : (
         <section
           style={{
@@ -107,7 +136,14 @@ export default async function ProductsPage() {
 
                 {/* Category */}
                 {p.category ? (
-                  <div style={{ color: '#777', fontSize: 12, marginBottom: 6 }}>{p.category}</div>
+                  <div style={{ color: '#777', fontSize: 12, marginBottom: 6 }}>
+                    <Link
+                      href={`/products?category=${encodeURIComponent(p.category)}`}
+                      className="hover:underline"
+                    >
+                      {p.category}
+                    </Link>
+                  </div>
                 ) : null}
 
                 {/* Price */}
@@ -127,15 +163,6 @@ export default async function ProductsPage() {
 
                 {/* Link */}
                 <div style={{ marginTop: 10 }}>
-                  <a href={`/products/${p.id}`} style={{ color: '#2563eb' }}>
+                  <Link href={`/products/${p.id}`} style={{ color: '#2563eb' }}>
                     View details →
-                  </a>
-                </div>
-              </article>
-            )
-          })}
-        </section>
-      )}
-    </main>
-  )
-}
+                  </Link>
