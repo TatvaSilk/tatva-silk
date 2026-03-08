@@ -65,7 +65,6 @@ export default function HeaderNav() {
     ? `Hello, ${userEmail.split("@")[0]}`
     : "Hello, sign in";
 
-  // Search
   function onSearch(e: React.FormEvent) {
     e.preventDefault();
     const t = q.trim();
@@ -133,7 +132,7 @@ export default function HeaderNav() {
         >
           {/* Logo + Deliver to */}
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            /
+            <Link href="/" style={{ display: "flex", gap: 10, alignItems: "center", color: "inherit", textDecoration: "none" }}>
               <span
                 style={{
                   display: "inline-grid",
@@ -149,7 +148,7 @@ export default function HeaderNav() {
                 TS
               </span>
               <div>
-                <div style={{ fontWeight: 800 }}>Tatva Silk</div>
+                <div style={{ fontWeight: 800, lineHeight: 1 }}>Tatva Silk</div>
                 <button
                   onClick={openZipDialog}
                   style={{
@@ -225,7 +224,7 @@ export default function HeaderNav() {
             onMouseLeave={() => setMenuOpen(false)}
           >
             <div style={{ fontSize: 12, color: "#a1a1aa" }}>{greeting}</div>
-            <div style={{ fontWeight: 700 }}>Account & Lists ▾</div>
+            <div style={{ fontWeight: 700 }}>Account &amp; Lists ▾</div>
 
             {menuOpen && (
               <div
@@ -247,7 +246,7 @@ export default function HeaderNav() {
               >
                 {!userEmail && (
                   <div style={{ textAlign: "center", marginBottom: 12 }}>
-                    /accountSign in</Link>
+                    <Link href="/account">Sign in</Link>
                   </div>
                 )}
 
@@ -263,10 +262,10 @@ export default function HeaderNav() {
                       Your Account
                     </div>
                     <ul style={{ lineHeight: 1.8 }}>
-                      <li>/ordersYour Orders</Link></li>
-                      <li>/accountProfile</Link></li>
-                      <li>/account/addressesManage Addresses</Link></li>
-                      <li>/account/paymentsPayment Methods</Link></li>
+                      <li><Link href="/orders">Your Orders</Link></li>
+                      <li><Link href="/account">Profile</Link></li>
+                      <li><Link href="/account/addresses">Manage Addresses</Link></li>
+                      <li><Link href="/account/payments">Payment Methods</Link></li>
                     </ul>
                   </div>
 
@@ -275,10 +274,10 @@ export default function HeaderNav() {
                       Quick Actions
                     </div>
                     <ul style={{ lineHeight: 1.8 }}>
-                      <li>/products?category=banarasiBanarasi</Link></li>
-                      <li>/products?category=patolaPatola</Link></li>
-                      <li>/products?category=soft-silkSoft Silk</Link></li>
-                      <li>/today-dealsToday’s deals</Link></li>
+                      <li><Link href="/products?category=banarasi">Banarasi</Link></li>
+                      <li><Link href="/products?category=patola">Patola</Link></li>
+                      <li><Link href="/products?category=soft-silk">Soft Silk</Link></li>
+                      <li><Link href="/today-deals">Today’s deals</Link></li>
                     </ul>
                   </div>
                 </div>
@@ -307,7 +306,7 @@ export default function HeaderNav() {
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 12, color: "#a1a1aa" }}>Returns</div>
             <div style={{ fontWeight: 700 }}>
-              /orders& Orders</Link>
+              <Link href="/orders">&amp; Orders</Link>
             </div>
           </div>
 
@@ -353,13 +352,13 @@ export default function HeaderNav() {
               fontSize: 14,
             }}
           >
-            /products?category=banarasiBanarasi</Link>
-            /products?category=kanjivaramKanjivaram</Link>
-            /products?category=patolaPatola</Link>
-            /products?category=soft-silkSoft Silk</Link>
-            /weddingWedding</Link>
-            /giftsGifts</Link>
-            /today-dealsToday’s Deals</Link>
+            <Link href="/products?category=banarasi">Banarasi</Link>
+            <Link href="/products?category=kanjivaram">Kanjivaram</Link>
+            <Link href="/products?category=patola">Patola</Link>
+            <Link href="/products?category=soft-silk">Soft Silk</Link>
+            <Link href="/wedding">Wedding</Link>
+            <Link href="/gifts">Gifts</Link>
+            <Link href="/today-deals">Today’s Deals</Link>
           </div>
         </nav>
       </header>
