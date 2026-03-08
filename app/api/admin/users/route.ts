@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
   const { data: me, error: meErr } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, approved')
     .eq('id', user.id)
     .single();
 
@@ -35,12 +35,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
+  const urlObj = new URL(req.url);
+  const meOnly = urlObj.searchParams.get('me') === '1';
+  const debug = urlObj.searchParams.get('debug') === '1';
+
   const admin = supabaseAdmin();
-  const { data, error } = await admin
+  let query = admin
     .from('profiles')
     .select('id, email, role, approved, created_at')
     .order('created_at', { ascending: false });
 
+  if (meOnly) query = query.eq('id', user.id);
+
+  const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (debug) {
+    return NextResponse.json({
+      projectUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      rows: data ?? []
+    });
+  }
+
   return NextResponse.json(data ?? []);
 }
