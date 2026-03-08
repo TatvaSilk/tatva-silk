@@ -12,7 +12,7 @@ type Product = {
   stock: number;
   category: string | null;
   created_at: string | null;
-  primary_image_url?: string | null; // comes from API (joined from product_images)
+  primary_image_url?: string | null; // this comes from the API (joined from product_images)
 };
 
 export default function ProductsPage() {
@@ -82,7 +82,9 @@ export default function ProductsPage() {
         }}
       >
         <h1 style={{ fontSize: 18, fontWeight: 600 }}>Products</h1>
-        /admin/products/newNew product</Link>
+        <Link href="/admin/products/new" style={secondaryBtn}>
+          New product
+        </Link>
       </div>
 
       {rows.length === 0 ? (
@@ -203,3 +205,4 @@ const secondaryBtn: React.CSSProperties = {
   cursor: 'pointer',
   textDecoration: 'none',
 };
+``
