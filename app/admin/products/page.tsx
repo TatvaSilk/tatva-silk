@@ -12,7 +12,7 @@ type Product = {
   stock: number;
   category: string | null;
   created_at: string | null;
-  primary_image_url?: string | null;
+  primary_image_url?: string | null; // comes from API (joined from product_images)
 };
 
 export default function ProductsPage() {
@@ -73,7 +73,14 @@ export default function ProductsPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 12,
+        }}
+      >
         <h1 style={{ fontSize: 18, fontWeight: 600 }}>Products</h1>
         /admin/products/newNew product</Link>
       </div>
@@ -111,7 +118,14 @@ export default function ProductsPage() {
                             style={{ borderRadius: 6, objectFit: 'cover' }}
                           />
                         ) : (
-                          <div style={{ width: 40, height: 40, borderRadius: 6, background: '#1f2937' }} />
+                          <div
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 6,
+                              background: '#1f2937',
+                            }}
+                          />
                         )}
                         <span>{p.name}</span>
                       </div>
@@ -119,7 +133,13 @@ export default function ProductsPage() {
                     <td style={td}>
                       {hasOffer ? (
                         <>
-                          <span style={{ textDecoration: 'line-through', opacity: 0.7, marginRight: 8 }}>
+                          <span
+                            style={{
+                              textDecoration: 'line-through',
+                              opacity: 0.7,
+                              marginRight: 8,
+                            }}
+                          >
                             ${original.toFixed(2)}
                           </span>
                           <strong>${offer.toFixed(2)}</strong>
@@ -130,11 +150,19 @@ export default function ProductsPage() {
                     </td>
                     <td style={td}>{p.stock}</td>
                     <td style={td}>{p.category ?? '—'}</td>
-                    <td style={td}>{p.created_at ? new Date(p.created_at).toLocaleString() : '—'}</td>
+                    <td style={td}>
+                      {p.created_at ? new Date(p.created_at).toLocaleString() : '—'}
+                    </td>
                     <td style={{ ...td, textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                        <Link href={`/admin/products/${p.id}`} style={secondaryBtn}>Edit</Link>
-                        <button onClick={() => remove(p.id)} disabled={deletingId === p.id} style={secondaryBtn}>
+                        <Link href={`/admin/products/${p.id}`} style={secondaryBtn}>
+                          Edit
+                        </Link>
+                        <button
+                          onClick={() => remove(p.id)}
+                          disabled={deletingId === p.id}
+                          style={secondaryBtn}
+                        >
                           {deletingId === p.id ? 'Deleting…' : 'Delete'}
                         </button>
                       </div>
@@ -151,11 +179,27 @@ export default function ProductsPage() {
 }
 
 async function safeMsg(res: Response) {
-  try { const j = await res.json(); return j?.error ?? res.statusText; } catch { return res.statusText; }
+  try {
+    const j = await res.json();
+    return j?.error ?? res.statusText;
+  } catch {
+    return res.statusText;
+  }
 }
 
-const th: React.CSSProperties = { padding: '10px 8px', fontWeight: 600, fontSize: 12, color: '#cbd5e1' };
+const th: React.CSSProperties = {
+  padding: '10px 8px',
+  fontWeight: 600,
+  fontSize: 12,
+  color: '#cbd5e1',
+};
 const td: React.CSSProperties = { padding: '10px 8px' };
 const secondaryBtn: React.CSSProperties = {
-  background:'#1f2937', color:'#e5e7eb', border:'1px solid #374151', borderRadius:6, padding:'6px 8px', cursor:'pointer', textDecoration:'none'
+  background: '#1f2937',
+  color: '#e5e7eb',
+  border: '1px solid #374151',
+  borderRadius: 6,
+  padding: '6px 8px',
+  cursor: 'pointer',
+  textDecoration: 'none',
 };
