@@ -15,19 +15,14 @@ function clientFromToken(token?: string) {
   });
 }
 
-type Body = Partial<{
-  role: 'admin' | 'manager' | 'customer';
-  approved: boolean;
-}>;
+type Body = Partial<{ role: 'admin' | 'manager' | 'customer'; approved: boolean }>;
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const targetId = params.id;
   const body = (await req.json()) as Body;
 
   const authHeader = req.headers.get('authorization') ?? '';
-  const token = authHeader.toLowerCase().startsWith('bearer ')
-    ? authHeader.slice(7)
-    : undefined;
+  const token = authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice(7) : undefined;
 
   const supabase = clientFromToken(token);
   const { data: { user } } = await supabase.auth.getUser();
@@ -40,18 +35,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     .single();
 
   if (meErr || !me) return NextResponse.json({ error: 'profile-not-found' }, { status: 404 });
-  if ((me.role as any) !== 'admin') return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
-  if (user.id === targetId && body.role && body.role !== 'admin') {
-    return NextResponse.json({ error: 'cannot-demote-self' }, { status: 400 });
-  }
+  const isAdmin = me.role === 'admin';
+  const isManager = me.role === 'manager';
 
+  // Managers can only toggle 'approved'; Admins can also change 'role'
   const patch: Record<string, any> = {};
   if (typeof body.approved === 'boolean') patch.approved = body.approved;
-  if (body.role && ['admin', 'manager', 'customer'].includes(body.role)) patch.role = body.role;
+  if (isAdmin && body.role && ['admin','manager','customer'].includes(body.role)) patch.role = body.role;
 
   if (Object.keys(patch).length === 0) {
-    return NextResponse.json({ error: 'no-valid-fields' }, { status: 400 });
+    return NextResponse.json({ error: isAdmin ? 'no-valid-fields' : 'managers-can-only-approve' }, { status: 400 });
+  }
+
+  // Prevent demoting yourself from admin
+  if (user.id === targetId && patch.role && patch.role !== 'admin') {
+    return NextResponse.json({ error: 'cannot-demote-self' }, { status: 400 });
   }
 
   const admin = supabaseAdmin();
