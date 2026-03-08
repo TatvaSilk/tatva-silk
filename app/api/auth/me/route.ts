@@ -4,20 +4,19 @@ import { supabaseServer } from '../../../../lib/supabaseServer';
 export async function GET() {
   const supabase = supabaseServer();
 
-  // 1) Get signed-in user from Supabase session
+  // Get signed-in user
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
     return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
   }
 
-  // Default role
   let role: 'admin' | 'manager' | 'customer' = 'customer';
   let approved = false;
   let email = user.email ?? '';
 
-  // 2) If you already have a unified 'profiles' table, use it
+  // Try a unified profiles table first (if you create it later)
   const { data: profile } = await supabase
-    .from('profiles')               // safe try: if it doesn't exist, the query will error; we'll ignore
+    .from('profiles')
     .select('email, role, approved')
     .eq('id', user.id)
     .maybeSingle();
@@ -27,7 +26,7 @@ export async function GET() {
     role = (profile.role as any) ?? role;
     approved = (profile.approved as any) ?? approved;
   } else {
-    // 3) Fallback: check your existing 'admin_users' by email
+    // Fallback: use your existing admin_users
     const { data: admin } = await supabase
       .from('admin_users')
       .select('email, role')
@@ -38,15 +37,13 @@ export async function GET() {
       role = admin.role as any;
       approved = true;
     } else {
-      // 4) Last fallback: customer_profiles (if you want to treat them as approved customers)
+      // Optional: if you want to treat existing customer_profiles as approved customers:
       const { data: customer } = await supabase
         .from('customer_profiles')
         .select('email')
         .eq('email', email)
         .maybeSingle();
-      if (customer) {
-        approved = true;
-      }
+      if (customer) approved = true;
     }
   }
 
