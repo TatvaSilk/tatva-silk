@@ -1,18 +1,29 @@
-// app/api/admin/users/route.ts
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
-import { supabaseServer } from '../../../../lib/supabaseServer';
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 
-export async function GET() {
-  // 1) Who is calling?
-  const supabase = supabaseServer();
+function clientFromToken(token?: string) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  return createClient(url, anon, {
+    global: token ? { headers: { Authorization: `Bearer ${token}` } } : {},
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+}
+
+export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get('authorization') ?? '';
+  const token = authHeader.toLowerCase().startsWith('bearer ')
+    ? authHeader.slice(7)
+    : undefined;
+
+  const supabase = clientFromToken(token);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
 
-  // 2) Read caller's role from profiles
   const { data: me, error: meErr } = await supabase
     .from('profiles')
     .select('role')
@@ -20,11 +31,10 @@ export async function GET() {
     .single();
 
   if (meErr || !me) return NextResponse.json({ error: 'profile-not-found' }, { status: 404 });
-  if (!['admin', 'manager'].includes(me.role)) {
+  if (!['admin', 'manager'].includes(me.role as any)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
-  // 3) Fetch users with service role (bypass RLS)
   const admin = supabaseAdmin();
   const { data, error } = await admin
     .from('profiles')
@@ -32,6 +42,5 @@ export async function GET() {
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
   return NextResponse.json(data ?? []);
 }
