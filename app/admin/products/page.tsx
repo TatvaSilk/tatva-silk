@@ -11,8 +11,8 @@ type Product = {
   offer_price: number | null;
   stock: number;
   category: string | null;
-  image: string | null;
   created_at: string | null;
+  primary_image_url?: string | null;
 };
 
 export default function ProductsPage() {
@@ -75,7 +75,7 @@ export default function ProductsPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h1 style={{ fontSize: 18, fontWeight: 600 }}>Products</h1>
-        <Link href="/admin/products/new" style={primaryBtn}>New product</Link>
+        /admin/products/newNew product</Link>
       </div>
 
       {rows.length === 0 ? (
@@ -94,13 +94,28 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map(p => {
+              {rows.map((p) => {
                 const hasOffer = p.offer_price != null;
                 const original = Number(p.original_price ?? 0);
                 const offer = Number(p.offer_price ?? 0);
                 return (
                   <tr key={p.id} style={{ borderBottom: '1px solid #1f2937' }}>
-                    <td style={td}>{p.name}</td>
+                    <td style={td}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {p.primary_image_url ? (
+                          <img
+                            src={p.primary_image_url}
+                            alt=""
+                            width={40}
+                            height={40}
+                            style={{ borderRadius: 6, objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <div style={{ width: 40, height: 40, borderRadius: 6, background: '#1f2937' }} />
+                        )}
+                        <span>{p.name}</span>
+                      </div>
+                    </td>
                     <td style={td}>
                       {hasOffer ? (
                         <>
@@ -141,9 +156,6 @@ async function safeMsg(res: Response) {
 
 const th: React.CSSProperties = { padding: '10px 8px', fontWeight: 600, fontSize: 12, color: '#cbd5e1' };
 const td: React.CSSProperties = { padding: '10px 8px' };
-const primaryBtn: React.CSSProperties = {
-  background: '#2563eb', color: '#fff', padding: '8px 10px', borderRadius: 6, textDecoration: 'none'
-};
 const secondaryBtn: React.CSSProperties = {
-  background: '#1f2937', color: '#e5e7eb', border: '1px solid #374151', borderRadius: 6, padding: '6px 8px', cursor: 'pointer', textDecoration: 'none'
+  background:'#1f2937', color:'#e5e7eb', border:'1px solid #374151', borderRadius:6, padding:'6px 8px', cursor:'pointer', textDecoration:'none'
 };
