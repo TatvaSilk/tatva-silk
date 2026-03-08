@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { useCartCount } from "@/hooks/useCartCount";
+import CartDrawer from "@/components/CartDrawer";
 
 type DeliveryPref = { pin: string; label: string };
 
@@ -17,26 +19,24 @@ export default function HeaderNav() {
   // Search
   const [q, setQ] = useState("");
 
-  // Deliver-to state
+  // Deliver-to
   const [openZip, setOpenZip] = useState(false);
   const [pin, setPin] = useState("");
   const [delivery, setDelivery] = useState<DeliveryPref | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // User
+  // Auth
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
 
-  // Dropdown menu
+  // Dropdown
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Cart
-  const [cartCount, setCartCount] = useState(0);
+  // Cart count (live from Supabase)
+  const liveCount = useCartCount();
 
-  // Load things
   useEffect(() => {
-    // ZIP
     try {
       const raw = localStorage.getItem("ts.delivery");
       if (raw) {
@@ -47,13 +47,6 @@ export default function HeaderNav() {
       }
     } catch {}
 
-    // Cart count placeholder
-    try {
-      const c = localStorage.getItem("cart_count");
-      setCartCount(c ? parseInt(c, 10) : 0);
-    } catch {}
-
-    // User
     supabase.auth.getUser().then(({ data }) => {
       const u = data.user;
       if (!u) return;
@@ -64,9 +57,8 @@ export default function HeaderNav() {
         null;
       setUserName(name);
     });
-  }, []);
+  }, [supabase]);
 
-  // Greeting
   const greeting = userName
     ? `Hello, ${userName.split(" ")[0]}`
     : userEmail
@@ -95,12 +87,9 @@ export default function HeaderNav() {
       setErr("Please enter a valid 6-digit PIN.");
       return;
     }
-
     setSaving(true);
     try {
-      const res = await fetch(`/api/pincode?pin=${normalized}`, {
-        cache: "no-store",
-      });
+      const res = await fetch(`/api/pincode?pin=${normalized}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`Lookup failed (${res.status})`);
       const json = await res.json();
       const label = json?.label || `PIN ${normalized}`;
@@ -176,12 +165,12 @@ export default function HeaderNav() {
             </Link>
           </div>
 
-          {/* Second "Deliver to" small text */}
+          {/* Secondary Deliver-to */}
           <div className="hide-md" style={{ fontSize: 12 }}>
             Deliver to <strong>{delivery?.label}</strong>
           </div>
 
-          {/* SEARCH BAR */}
+          {/* SEARCH */}
           <form onSubmit={onSearch} style={{ display: "flex", gap: 8 }}>
             <select
               defaultValue="all"
@@ -229,7 +218,7 @@ export default function HeaderNav() {
           {/* LANGUAGE */}
           <div style={{ fontSize: 12 }}>Language <strong>EN</strong></div>
 
-          {/* ACCOUNT & LISTS (Amazon-style fully working dropdown) */}
+          {/* ACCOUNT & LISTS (menu) */}
           <div
             style={{ position: "relative", cursor: "pointer" }}
             onMouseEnter={() => setMenuOpen(true)}
@@ -322,9 +311,13 @@ export default function HeaderNav() {
             </div>
           </div>
 
-          {/* CART */}
+          {/* CART button → opens Drawer */}
           <div style={{ textAlign: "right", position: "relative" }}>
-            /cart
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('cart:open'))}
+              style={{ all: 'unset', cursor: 'pointer' }}
+              aria-label="Open cart"
+            >
               🛒 Cart
               <span
                 style={{
@@ -342,13 +335,13 @@ export default function HeaderNav() {
                   padding: "0 4px",
                 }}
               >
-                {cartCount}
+                {liveCount}
               </span>
-            </Link>
+            </button>
           </div>
         </div>
 
-        {/* SECONDARY NAV */}
+        {/* Secondary nav */}
         <nav style={{ background: "#111827" }}>
           <div
             style={{
@@ -370,6 +363,9 @@ export default function HeaderNav() {
           </div>
         </nav>
       </header>
+
+      {/* Cart Drawer lives here (once per page) */}
+      <CartDrawer />
 
       {/* ZIP MODAL */}
       {openZip && (
