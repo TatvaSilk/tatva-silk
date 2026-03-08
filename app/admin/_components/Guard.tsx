@@ -15,20 +15,26 @@ export default function Guard({
   const router = useRouter();
 
   useEffect(() => {
-    let done = false;
+    let cancelled = false;
     (async () => {
       try {
         const res = await fetch('/api/auth/me', { cache: 'no-store' });
-        if (!res.ok) {
+        if (res.status === 401) {
+          // not signed in
           router.replace('/login');
+          return;
+        }
+        if (!res.ok) {
+          // signed in but something else (e.g., no profile yet, forbidden)
+          router.replace('/');
           return;
         }
         const me = await res.json();
         if (!allowed.includes(me.role)) {
-          router.replace('/');
+          router.replace('/'); // signed in but not allowed for admin
           return;
         }
-        if (!done) {
+        if (!cancelled) {
           setOk(true);
           setChecking(false);
         }
@@ -36,9 +42,7 @@ export default function Guard({
         router.replace('/login');
       }
     })();
-    return () => {
-      done = true;
-    };
+    return () => { cancelled = true; };
   }, [router, allowed]);
 
   if (checking) return <div style={{ padding: 20, opacity: 0.7 }}>Checking access…</div>;
