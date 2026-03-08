@@ -15,29 +15,40 @@ export function useCartCount() {
     let channel: any
 
     async function refresh() {
-      // Try the RPC to get or create active cart so we always have a cart_id
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setCount(0); return }
 
-      const { data: cartId, error: fnErr } = await supabase.rpc('ensure_active_cart')
-      if (fnErr || !cartId) { setCount(0); return }
+      // Try RPC; if missing, fallback by selecting cart
+      let cartId: string | null = null
+      const { data: rpcId } = await supabase.rpc('ensure_active_cart')
+      if (rpcId) {
+        cartId = rpcId as string
+      } else {
+        const { data: c1 } = await supabase
+          .from('carts')
+          .select('id')
+          .eq('customer_id', user.id)   // using customer_id
+          .limit(1)
+          .maybeSingle()
+        if (c1?.id) cartId = c1.id
+      }
+
+      if (!cartId) { setCount(0); return }
 
       const { data } = await supabase
         .from('cart_items')
         .select('quantity')
-        .eq('cart_id', cartId as string)
+        .eq('cart_id', cartId)
 
       const c = (data ?? []).reduce((s, r: any) => s + (r.quantity ?? 0), 0)
       setCount(c)
 
-      // Subscribe once we know the cart id
       if (!channel) {
         channel = supabase
           .channel('cart_items_count')
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'cart_items', filter: `cart_id=eq.${cartId}` },
-            () => refresh()
+          .on('postgres_changes',
+              { event: '*', schema: 'public', table: 'cart_items', filter: `cart_id=eq.${cartId}` },
+              () => refresh()
           )
           .subscribe()
       }
