@@ -5,12 +5,22 @@ import { useRouter } from 'next/navigation';
 import { supabaseBrowser } from '../../../../lib/supabaseClient';
 
 export default function NewProductPage() {
-  const [form, setForm] = useState({ name:'', price:'', stock:'', category:'', image:'', description:'' });
+  const [form, setForm] = useState({
+    name: '',
+    original_price: '',
+    offer_price: '',
+    stock: '',
+    category: '',
+    image: '',
+    description: ''
+  });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const router = useRouter();
 
-  function set<K extends keyof typeof form>(k: K, v: string) { setForm(prev => ({ ...prev, [k]: v })); }
+  function set<K extends keyof typeof form>(key: K, val: string) {
+    setForm(prev => ({ ...prev, [key]: val }));
+  }
 
   async function getToken() {
     const { data } = await supabaseBrowser().auth.getSession();
@@ -25,14 +35,16 @@ export default function NewProductPage() {
 
       const payload = {
         name: form.name.trim(),
-        price: Number(form.price || 0),
+        original_price: Number(form.original_price || 0),
+        offer_price: form.offer_price === '' ? null : Number(form.offer_price),
         stock: Number(Number.isInteger(+form.stock) ? form.stock : 0),
         category: form.category.trim() || null,
         image: form.image.trim() || null,
         description: form.description.trim() || null
       };
       if (!payload.name) throw new Error('Name is required.');
-      if (payload.price < 0 || Number.isNaN(payload.price)) throw new Error('Price is invalid.');
+      if (Number.isNaN(payload.original_price) || payload.original_price < 0) throw new Error('Original price is invalid.');
+      if (payload.offer_price !== null && (Number.isNaN(payload.offer_price) || payload.offer_price < 0)) throw new Error('Offer price is invalid.');
       if (payload.stock < 0 || Number.isNaN(payload.stock)) throw new Error('Stock is invalid.');
 
       const res = await fetch('/api/admin/products', {
@@ -58,17 +70,26 @@ export default function NewProductPage() {
       <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>New Product</h1>
       <div style={{ display:'grid', gap:10 }}>
         <input style={input} placeholder="Name" value={form.name} onChange={e=>set('name', e.target.value)} />
+
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-          <input style={input} placeholder="Price (49.99)" value={form.price} onChange={e=>set('price', e.target.value)} />
-          <input style={input} placeholder="Stock (10)" value={form.stock} onChange={e=>set('stock', e.target.value)} />
+          <input style={input} placeholder="Original Price (e.g., 100)" value={form.original_price} onChange={e=>set('original_price', e.target.value)} />
+          <input style={input} placeholder="Offer Price (optional)" value={form.offer_price} onChange={e=>set('offer_price', e.target.value)} />
         </div>
-        <input style={input} placeholder="Category (optional)" value={form.category} onChange={e=>set('category', e.target.value)} />
+
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          <input style={input} placeholder="Stock (e.g., 10)" value={form.stock} onChange={e=>set('stock', e.target.value)} />
+          <input style={input} placeholder="Category (optional)" value={form.category} onChange={e=>set('category', e.target.value)} />
+        </div>
+
         <input style={input} placeholder="Image URL (optional)" value={form.image} onChange={e=>set('image', e.target.value)} />
+
         <textarea style={{ ...input, minHeight: 120 }} placeholder="Description (optional)" value={form.description} onChange={e=>set('description', e.target.value)} />
+
         <div style={{ display:'flex', gap:10 }}>
           <button disabled={saving} onClick={save} style={primaryBtn}>{saving ? 'Saving…' : 'Save product'}</button>
           <button disabled={saving} onClick={()=>history.back()} style={secondaryBtn}>Cancel</button>
         </div>
+
         {err && <div style={{ color:'#fca5a5' }}>Error: {err}</div>}
       </div>
     </div>
