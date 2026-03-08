@@ -1,45 +1,84 @@
-import { NextResponse } from 'next/server';
-import { supabaseServer } from '../../../../lib/supabaseServer';
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const supabase = supabaseServer();
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-  // 1) Get the signed-in user from the session cookie
+/**
+ * We authenticate using the Bearer token forwarded from the client.
+ * This avoids relying on cookies and works reliably with App Router.
+ */
+export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get('authorization') || '';
+  const hasBearer = authHeader.toLowerCase().startsWith('bearer ');
+  const token = hasBearer ? authHeader.slice(7) : null;
+
+  if (!token) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+  }
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false
+      }
+    }
+  );
+
+  // 1) Identify the user from the token
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
     return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
   }
 
-  // 2) Try to read profile
-  let { data: profile } = await supabase
+  // 2) Ensure a profile row exists (first call can create it)
+  let profileEmail = user.email ?? null;
+  let role: 'admin' | 'manager' | 'customer' = 'customer';
+  let approved = false;
+
+  // Try to read profile
+  const { data: profile, error: pErr } = await supabase
     .from('profiles')
-    .select('id, email, role, approved')
+    .select('email, role, approved')
     .eq('id', user.id)
     .maybeSingle();
 
-  // 3) If missing, auto-create a minimal row (allowed by our RLS insert policy)
-  if (!profile) {
+  if (!pErr && profile) {
+    profileEmail = profile.email ?? profileEmail;
+    role = (profile.role as any) ?? role;
+    approved = (profile.approved as any) ?? approved;
+  } else {
+    // Attempt to create a minimal profile row if not found
     const { data: inserted } = await supabase
       .from('profiles')
-      .insert({ id: user.id, email: user.email ?? null })
-      .select('id, email, role, approved')
-      .single();
+      .insert({ id: user.id, email: profileEmail })
+      .select('email, role, approved')
+      .single()
+      .catch(() => ({ data: null as any })); // ignore RLS insert failures silently
 
-    profile = inserted ?? null;
+    if (inserted) {
+      profileEmail = inserted.email ?? profileEmail;
+      role = (inserted.role as any) ?? role;
+      approved = (inserted.approved as any) ?? approved;
+    }
   }
 
-  // 4) As a fallback (if you still use admin_users), honor that role by email
-  let role: 'admin' | 'manager' | 'customer' = (profile?.role as any) ?? 'customer';
-  let approved = (profile?.approved as any) ?? false;
-  let email = profile?.email ?? user.email ?? '';
-
-  if (!profile) {
+  // Optional: legacy fallback if you still have admin_users table
+  if (role === 'customer') {
     const { data: admin } = await supabase
       .from('admin_users')
-      .select('email, role')
-      .eq('email', email)
-      .maybeSingle();
-
+      .select('role, email')
+      .eq('email', profileEmail)
+      .maybeSingle()
+      .catch(() => ({ data: null as any }));
     if (admin?.role === 'admin' || admin?.role === 'manager') {
       role = admin.role as any;
       approved = true;
@@ -48,7 +87,7 @@ export async function GET() {
 
   return NextResponse.json({
     userId: user.id,
-    email,
+    email: profileEmail,
     role,
     approved
   });
