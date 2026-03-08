@@ -1,19 +1,17 @@
 import { NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabaseServer';
+import { supabaseServer } from '../../../../lib/supabaseServer';
 
 export async function GET() {
   const supabase = supabaseServer();
 
-  // Get session/user
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
     return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
   }
 
-  // Read role from profiles
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, email, role')
+    .select('id, email, role, approved')
     .eq('id', user.id)
     .single();
 
@@ -24,6 +22,7 @@ export async function GET() {
   return NextResponse.json({
     userId: user.id,
     email: profile?.email ?? user.email,
-    role: profile?.role ?? 'customer'
+    role: profile?.role ?? 'customer',
+    approved: profile?.approved ?? false
   });
 }
