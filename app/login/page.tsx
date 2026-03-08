@@ -1,24 +1,22 @@
 // app/login/page.tsx
 'use client';
 
+export const dynamic = 'force-dynamic'; // avoid prerender issues for this client-only page
+
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { supabaseBrowser } from '../../lib/supabaseClient';
 
 type Mode = 'password' | 'otp' | 'magic';
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<Mode>('password'); // default to password
+  const [mode, setMode] = useState<Mode>('password'); // default to password sign-in
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [status, setStatus] = useState<'idle'|'working'|'done'|'error'>('idle');
   const [message, setMessage] = useState<string>('');
   const router = useRouter();
-  const search = useSearchParams();
-
-  // If you navigated here due to redirect, we can show a small note.
-  const reason = search.get('reason'); // e.g., ?reason=auth-required
 
   function note(msg: string) {
     setMessage(msg);
@@ -30,14 +28,29 @@ export default function LoginPage() {
     setStatus('working'); setMessage('');
     try {
       const supabase = supabaseBrowser();
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       setStatus('done');
       note('Signed in successfully.');
-      router.replace('/admin'); // send admins to admin by default
+      router.replace('/admin');
     } catch (err: any) {
       setStatus('error');
       setMessage(err?.message ?? 'Sign-in failed.');
+    }
+  }
+
+  async function handleSignUp(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus('working'); setMessage('');
+    try {
+      const supabase = supabaseBrowser();
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      setStatus('done');
+      note('Account created. If email confirmation is enabled, check your inbox.');
+    } catch (err: any) {
+      setStatus('error');
+      setMessage(err?.message ?? 'Sign-up failed.');
     }
   }
 
@@ -72,7 +85,7 @@ export default function LoginPage() {
       const { error } = await supabase.auth.verifyOtp({
         email,
         token: otp,
-        type: 'email' // type can be 'email' for email OTP
+        type: 'email' // for email OTP
       });
       if (error) throw error;
       setStatus('done');
@@ -106,33 +119,10 @@ export default function LoginPage() {
     }
   }
 
-  async function signUp(e: React.FormEvent) {
-    e.preventDefault();
-    setStatus('working'); setMessage('');
-    try {
-      const supabase = supabaseBrowser();
-      const { error } = await supabase.auth.signUp({
-        email,
-        password
-      });
-      if (error) throw error;
-      setStatus('done');
-      note('Account created. Check your email (if confirmation required) or try signing in.');
-    } catch (err: any) {
-      setStatus('error');
-      setMessage(err?.message ?? 'Sign-up failed.');
-    }
-  }
-
   return (
     <main style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: '#0b0f1a', color: '#e2e8f0' }}>
       <div style={{ width: 380, padding: 20, border: '1px solid #1f2937', borderRadius: 12, background: '#0f172a' }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>Sign in</h1>
-        {reason === 'auth-required' && (
-          <div style={{ marginBottom: 10, fontSize: 13, color: '#93c5fd' }}>
-            Please sign in to continue.
-          </div>
-        )}
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
@@ -141,9 +131,9 @@ export default function LoginPage() {
           <button onClick={() => setMode('magic')} style={tabStyle(mode === 'magic')}>Magic Link</button>
         </div>
 
-        {/* Forms */}
+        {/* PASSWORD */}
         {mode === 'password' && (
-          <form onSubmit={signInWithPassword} className="space-y-3">
+          <form onSubmit={signInWithPassword}>
             <input
               type="email" required placeholder="you@example.com"
               value={email} onChange={(e) => setEmail(e.target.value)}
@@ -157,15 +147,21 @@ export default function LoginPage() {
             <button type="submit" disabled={status === 'working'} style={primaryBtn}>
               {status === 'working' ? 'Signing in…' : 'Sign in'}
             </button>
-            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8 }}>
-              New user? <a href="#" onClick={(e)=>{e.preventDefault(); signUp(e);}} style={{ color: '#93c5fd' }}>Create account</a>
-            </div>
+            <button
+              type="button"
+              onClick={handleSignUp}
+              disabled={status === 'working'}
+              style={{ ...primaryBtn, background: '#374151', marginTop: 8 }}
+            >
+              {status === 'working' ? 'Creating…' : 'Create account'}
+            </button>
           </form>
         )}
 
+        {/* EMAIL OTP */}
         {mode === 'otp' && (
           <div>
-            <form onSubmit={sendOtp} className="space-y-3">
+            <form onSubmit={sendOtp}>
               <input
                 type="email" required placeholder="you@example.com"
                 value={email} onChange={(e) => setEmail(e.target.value)}
@@ -175,7 +171,6 @@ export default function LoginPage() {
                 {status === 'working' ? 'Sending OTP…' : 'Send OTP to email'}
               </button>
             </form>
-
             <form onSubmit={verifyOtp} style={{ marginTop: 10 }}>
               <input
                 type="text" inputMode="numeric" pattern="[0-9]*" placeholder="Enter 6‑digit code"
@@ -189,8 +184,9 @@ export default function LoginPage() {
           </div>
         )}
 
+        {/* MAGIC LINK */}
         {mode === 'magic' && (
-          <form onSubmit={sendMagic} className="space-y-3">
+          <form onSubmit={sendMagic}>
             <input
               type="email" required placeholder="you@example.com"
               value={email} onChange={(e) => setEmail(e.target.value)}
@@ -208,7 +204,7 @@ export default function LoginPage() {
           </div>
         )}
         <div style={{ marginTop: 14, fontSize: 12, opacity: 0.7 }}>
-          Email provider must be enabled in Supabase Auth.
+          Ensure Supabase Email Auth is enabled; set Site URL/Redirects to your Vercel domain.
         </div>
       </div>
     </main>
