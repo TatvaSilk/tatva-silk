@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { supabaseBrowser } from '../../../lib/supabaseClient';
 
 type UserRow = {
   id: string;
@@ -16,11 +17,22 @@ export default function UsersPage() {
   const [err, setErr] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
 
+  async function getToken() {
+    const supabase = supabaseBrowser();
+    const { data } = await supabase.auth.getSession();
+    return data?.session?.access_token;
+  }
+
   async function loadUsers() {
     setLoading(true);
     setErr(null);
     try {
-      const res = await fetch('/api/admin/users', { cache: 'no-store' });
+      const token = await getToken();
+      if (!token) throw new Error('unauthenticated');
+      const res = await fetch('/api/admin/users', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store'
+      });
       if (!res.ok) {
         const msg = await safeMsg(res);
         throw new Error(msg);
@@ -42,9 +54,14 @@ export default function UsersPage() {
   async function updateUser(id: string, patch: Partial<Pick<UserRow, 'role' | 'approved'>>) {
     setSavingId(id);
     try {
+      const token = await getToken();
+      if (!token) throw new Error('unauthenticated');
       const res = await fetch(`/api/admin/users/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
         body: JSON.stringify(patch)
       });
       if (!res.ok) {
@@ -52,7 +69,7 @@ export default function UsersPage() {
         throw new Error(msg);
       }
       const updated = (await res.json()) as UserRow;
-      setRows(prev => (prev ?? []).map(u => (u.id === id ? { ...u, ...updated } as UserRow : u)));
+      setRows(prev => (prev ?? []).map(u => (u.id === id ? { ...u, ...updated } : u)));
     } catch (e: any) {
       alert(`Update failed: ${e?.message ?? 'Unknown error'}`);
     } finally {
@@ -140,4 +157,3 @@ const secondaryBtn: React.CSSProperties = {
 const select: React.CSSProperties = {
   background: '#0b1220', color: '#e2e8f0', border: '1px solid #334155', borderRadius: 6, padding: '6px 8px'
 };
-``
