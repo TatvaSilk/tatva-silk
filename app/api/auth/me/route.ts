@@ -4,29 +4,36 @@ import { supabaseServer } from '../../../../lib/supabaseServer';
 export async function GET() {
   const supabase = supabaseServer();
 
-  // Get signed-in user
+  // 1) Get the signed-in user from the session cookie
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
     return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
   }
 
-  let role: 'admin' | 'manager' | 'customer' = 'customer';
-  let approved = false;
-  let email = user.email ?? '';
-
-  // Try a unified profiles table first (if you create it later)
-  const { data: profile } = await supabase
+  // 2) Try to read profile
+  let { data: profile } = await supabase
     .from('profiles')
-    .select('email, role, approved')
+    .select('id, email, role, approved')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (profile) {
-    email = profile.email ?? email;
-    role = (profile.role as any) ?? role;
-    approved = (profile.approved as any) ?? approved;
-  } else {
-    // Fallback: use your existing admin_users
+  // 3) If missing, auto-create a minimal row (allowed by our RLS insert policy)
+  if (!profile) {
+    const { data: inserted } = await supabase
+      .from('profiles')
+      .insert({ id: user.id, email: user.email ?? null })
+      .select('id, email, role, approved')
+      .single();
+
+    profile = inserted ?? null;
+  }
+
+  // 4) As a fallback (if you still use admin_users), honor that role by email
+  let role: 'admin' | 'manager' | 'customer' = (profile?.role as any) ?? 'customer';
+  let approved = (profile?.approved as any) ?? false;
+  let email = profile?.email ?? user.email ?? '';
+
+  if (!profile) {
     const { data: admin } = await supabase
       .from('admin_users')
       .select('email, role')
@@ -36,14 +43,6 @@ export async function GET() {
     if (admin?.role === 'admin' || admin?.role === 'manager') {
       role = admin.role as any;
       approved = true;
-    } else {
-      // Optional: if you want to treat existing customer_profiles as approved customers:
-      const { data: customer } = await supabase
-        .from('customer_profiles')
-        .select('email')
-        .eq('email', email)
-        .maybeSingle();
-      if (customer) approved = true;
     }
   }
 
