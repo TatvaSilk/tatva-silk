@@ -4,10 +4,16 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabaseBrowser } from '../../../../lib/supabaseClient';
 
+type Cat = { id: string; slug: string; label: string; parent_id: string | null };
+
 export default function EditProductPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+
   const [form, setForm] = useState<any>(null);
+  const [parents, setParents] = useState<Cat[]>([]);
+  const [children, setChildren] = useState<Cat[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -20,6 +26,7 @@ export default function EditProductPage() {
     return data?.session?.access_token;
   }
 
+  // Load the product
   useEffect(() => {
     (async () => {
       try {
@@ -34,10 +41,12 @@ export default function EditProductPage() {
           throw new Error(j?.error ?? res.statusText);
         }
         const data = await res.json();
-        // Map API response (primary_image_url) into the form as image_url
+
+        // Prime the form. image_url maps to primary_image_url for convenience.
         setForm({
           ...data,
-          image_url: data.primary_image_url ?? '' // single primary image editable
+          image_url: data.primary_image_url ?? '',
+          category_parent_id: '' // we will derive and set this right below after we load all categories
         });
       } catch (e: any) {
         setErr(e?.message ?? 'Failed to load product.');
@@ -45,8 +54,81 @@ export default function EditProductPage() {
     })();
   }, [id]);
 
+  // Load ALL categories once, compute parents and children, and pre-select the product's current parent/child.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/categories', { cache: 'no-store' });
+        if (!res.ok) return;
+        const all: Cat[] = await res.json();
+        const ps = all.filter(c => c.parent_id === null);
+        setParents(ps);
+
+        // If product already has a subcategory assigned, figure out its parent and set the child list.
+        if (form?.category_id) {
+          const current = all.find(c => c.id === form.category_id);
+          const parentId = current?.parent_id ?? '';
+          set('category_parent_id', parentId);
+          const kids = all.filter(c => c.parent_id === parentId);
+          setChildren(kids);
+        }
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form?.category_id]);
+
+  // When parent selection changes, load children (server-filtered) and reset child if needed
+  useEffect(() => {
+    (async () => {
+      if (!form?.category_parent_id) {
+        setChildren([]);
+        set('category_id', '');
+        return;
+      }
+      const res = await fetch(`/api/admin/categories?parent_id=${form.category_parent_id}`, { cache: 'no-store' });
+      if (res.ok) {
+        const kids: Cat[] = await res.json();
+        setChildren(kids);
+        if (!kids.find(c => c.id === form.category_id)) {
+          set('category_id', '');
+        }
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form?.category_parent_id]);
+
+  // Device file picker
+  function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    setFiles(prev => [...prev, ...picked]);
+    e.target.value = '';
+  }
+
+  // Upload additional files to Storage and attach them with increasing sort_order
+  async function uploadFilesToStorage(productId: string, token: string) {
+    if (!files.length) return;
+    const supabase = supabaseBrowser();
+    const bucket = supabase.storage.from('product-images');
+    const urls: string[] = [];
+    for (const f of files) {
+      const path = `products/${productId}/${Date.now()}-${f.name}`;
+      const { error: upErr } = await bucket.upload(path, f, { upsert: true });
+      if (upErr) throw upErr;
+      const { data: pub } = bucket.getPublicUrl(path);
+      if (pub?.publicUrl) urls.push(pub.publicUrl);
+    }
+    if (urls.length) {
+      await fetch(`/api/admin/products/${productId}/images`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ urls })
+      });
+    }
+  }
+
   async function save() {
-    setSaving(true); setErr(null);
+    setSaving(true);
+    setErr(null);
     try {
       const token = await getToken();
       if (!token) throw new Error('unauthenticated');
@@ -60,21 +142,18 @@ export default function EditProductPage() {
             ? null
             : Number(form.offer_price),
         stock: Number(form.stock ?? 0),
-        category: form.category ?? null,
+        category_id: form.category_id || null, // save SUBCATEGORY id here
         image_url:
           form.image_url === '' || form.image_url === null
             ? null
-            : String(form.image_url).trim() // **important**
+            : String(form.image_url).trim()
       };
 
       if (!payload.name) throw new Error('Name is required.');
 
       const res = await fetch(`/api/admin/products/${id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload)
       });
       if (!res.ok) {
@@ -82,6 +161,10 @@ export default function EditProductPage() {
         throw new Error(j?.error ?? res.statusText);
       }
       await res.json();
+
+      // Upload any newly selected images and attach them
+      await uploadFilesToStorage(id as string, token);
+
       router.replace('/admin/products');
     } catch (e: any) {
       setErr(e?.message ?? 'Failed to save.');
@@ -94,7 +177,7 @@ export default function EditProductPage() {
   if (!form) return <div style={{ padding: 20 }}>Loading…</div>;
 
   return (
-    <div style={{ maxWidth: 640 }}>
+    <div style={{ maxWidth: 700 }}>
       <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Edit Product</h1>
       <div style={{ display: 'grid', gap: 10 }}>
         <input
@@ -126,20 +209,66 @@ export default function EditProductPage() {
             onChange={e => set('stock', e.target.value)}
             placeholder="Stock"
           />
-          <input
+          {/* PARENT category (e.g., Sarees) */}
+          <select
             style={input}
-            value={form.category ?? ''}
-            onChange={e => set('category', e.target.value)}
-            placeholder="Category"
-          />
+            value={form.category_parent_id ?? ''}
+            onChange={e => set('category_parent_id', e.target.value)}
+          >
+            <option value="">-- Select category --</option>
+            {parents.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
         </div>
+
+        {/* SUBCATEGORY (e.g., Banarasi/Kanjivam/Patola) */}
+        <select
+          style={input}
+          value={form.category_id ?? ''}
+          onChange={e => set('category_id', e.target.value)}
+          disabled={!children.length}
+        >
+          <option value="">
+            {children.length ? '-- Select subcategory --' : 'Select category first'}
+          </option>
+          {children.map(c => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
 
         <input
           style={input}
           value={form.image_url ?? ''}
           onChange={e => set('image_url', e.target.value)}
-          placeholder="Primary Image URL"
+          placeholder="Primary Image URL (optional)"
         />
+
+        {/* Add more images from device */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <label style={{ ...secondaryBtn, cursor: 'pointer' }}>
+            Upload more images…
+            <input type="file" multiple accept="image/*" onChange={onPickFiles} style={{ display: 'none' }} />
+          </label>
+          <span style={{ fontSize: 12, opacity: 0.8 }}>
+            {files.length ? `${files.length} file(s) selected` : 'No files selected'}
+          </span>
+        </div>
+
+        {files.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {files.map((f, i) => (
+              <div key={i} style={{ width: 80, height: 80, borderRadius: 6, overflow: 'hidden', background: '#111827' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={URL.createObjectURL(f)} alt="" width={80} height={80} style={{ objectFit: 'cover' }} />
+              </div>
+            ))}
+          </div>
+        )}
 
         <textarea
           style={{ ...input, minHeight: 120 }}
