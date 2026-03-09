@@ -11,6 +11,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <nav style={{ display: 'grid', gap: 6 }}>
             <Link href="/admin" style={linkStyle}>Dashboard</Link>
             <Link href="/admin/products" style={linkStyle}>Products</Link>
+            <Link href="/admin/categories" style={linkStyle}>Categories</Link>
             <Link href="/admin/orders" style={linkStyle}>Orders</Link>
             <Link href="/admin/users" style={linkStyle}>Users</Link>
             <Link href="/admin/settings" style={linkStyle}>Settings</Link>
