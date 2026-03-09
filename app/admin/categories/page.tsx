@@ -11,7 +11,7 @@ export default function CategoriesAdminPage() {
   const [err, setErr] = useState<string | null>(null);
 
   const [newParent, setNewParent] = useState({ label: '', slug: '' });
-  const [newChild, setNewChild] = useState<Record<string, { label: string; slug: string }>>({}); // by parent id
+  const [newChild, setNewChild] = useState<Record<string, { label: string; slug: string }>>({});
 
   async function getToken() {
     const { data } = await supabaseBrowser().auth.getSession();
@@ -23,14 +23,11 @@ export default function CategoriesAdminPage() {
     try {
       const res = await fetch('/api/admin/categories', { cache: 'no-store' });
       if (!res.ok) throw new Error((await res.json().catch(()=>({})))?.error ?? res.statusText);
-      const all = (await res.json()) as Cat[];
-      setRows(all);
+      setRows(await res.json());
     } catch (e: any) {
       setErr(e?.message ?? 'Failed to load categories.');
       setRows([]);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
 
   useEffect(() => { load(); }, []);
@@ -42,10 +39,8 @@ export default function CategoriesAdminPage() {
     const token = await getToken(); if (!token) return alert('unauthenticated');
     const payload = { label: newParent.label.trim(), slug: newParent.slug.trim() || undefined, parent_id: null };
     if (!payload.label) return alert('Label required');
-
     const res = await fetch('/api/admin/categories', {
-      method:'POST',
-      headers: { 'Content-Type':'application/json', Authorization: `Bearer ${token}` },
+      method: 'POST', headers: { 'Content-Type':'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(payload)
     });
     if (!res.ok) return alert((await res.json().catch(()=>({})))?.error ?? res.statusText);
@@ -58,14 +53,11 @@ export default function CategoriesAdminPage() {
     const f = newChild[parent_id] ?? { label:'', slug:'' };
     const payload = { label: f.label.trim(), slug: f.slug.trim() || undefined, parent_id };
     if (!payload.label) return alert('Label required');
-
     const res = await fetch('/api/admin/categories', {
-      method:'POST',
-      headers: { 'Content-Type':'application/json', Authorization: `Bearer ${token}` },
+      method: 'POST', headers: { 'Content-Type':'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(payload)
     });
     if (!res.ok) return alert((await res.json().catch(()=>({})))?.error ?? res.statusText);
-
     setNewChild(prev => ({ ...prev, [parent_id]: { label:'', slug:'' } }));
     await load();
   }
@@ -73,8 +65,7 @@ export default function CategoriesAdminPage() {
   async function rename(id: string, label: string, slug: string) {
     const token = await getToken(); if (!token) return alert('unauthenticated');
     const res = await fetch(`/api/admin/categories/${id}`, {
-      method:'PATCH',
-      headers: { 'Content-Type':'application/json', Authorization: `Bearer ${token}` },
+      method:'PATCH', headers:{ 'Content-Type':'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ label: label.trim(), slug: slug.trim() || undefined })
     });
     if (!res.ok) return alert((await res.json().catch(()=>({})))?.error ?? res.statusText);
@@ -82,21 +73,18 @@ export default function CategoriesAdminPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm('Delete category? It must have no children and no products assigned.')) return;
+    if (!confirm('Delete category? It must have no children and no products.')) return;
     const token = await getToken(); if (!token) return alert('unauthenticated');
-    const res = await fetch(`/api/admin/categories/${id}`, {
-      method:'DELETE',
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const res = await fetch(`/api/admin/categories/${id}`, { method:'DELETE', headers:{ Authorization: `Bearer ${token}` } });
     if (!res.ok) return alert((await res.json().catch(()=>({})))?.error ?? res.statusText);
     await load();
   }
 
-  if (loading) return <div style={{ padding:20 }}>Loading categories…</div>;
-  if (err) return <div style={{ padding:20, color:'#fca5a5' }}>Error: {err}</div>;
+  if (loading) return <div style={{ padding: 20 }}>Loading categories…</div>;
+  if (err) return <div style={{ padding: 20, color: '#fca5a5' }}>Error: {err}</div>;
 
   return (
-    <div style={{ padding: 20 }}>
+    <div style={{ padding: 20, maxWidth: 900 }}>
       <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Categories</h1>
 
       {/* Add parent */}
@@ -105,7 +93,7 @@ export default function CategoriesAdminPage() {
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:8 }}>
           <input style={input} placeholder="Label (e.g., Sarees)"
             value={newParent.label} onChange={e=>setNewParent(p=>({ ...p, label: e.target.value }))}/>
-          <input style={input} placeholder="Slug (optional, auto from label)"
+          <input style={input} placeholder="Slug (optional)"
             value={newParent.slug} onChange={e=>setNewParent(p=>({ ...p, slug: e.target.value }))}/>
           <button style={primaryBtn} onClick={addParent}>Add</button>
         </div>
@@ -119,7 +107,7 @@ export default function CategoriesAdminPage() {
 
             {/* Add child */}
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:8, marginTop:8 }}>
-              <input style={input} placeholder="New subcategory label (e.g., Banarasi)"
+              <input style={input} placeholder="New sub-category (e.g., Banarasi)"
                 value={(newChild[par.id]?.label ?? '')}
                 onChange={e=>setNewChild(prev => ({ ...prev, [par.id]: { ...(prev[par.id] ?? { label:'', slug:''}), label: e.target.value } }))}/>
               <input style={input} placeholder="Slug (optional)"
@@ -148,9 +136,7 @@ export default function CategoriesAdminPage() {
 }
 
 function EditableRow({ cat, onSave, onDelete }:{
-  cat: Cat;
-  onSave: (id:string, label:string, slug:string)=>void;
-  onDelete: (id:string)=>void;
+  cat: Cat; onSave:(id:string, label:string, slug:string)=>void; onDelete:(id:string)=>void;
 }) {
   const [label, setLabel] = useState(cat.label);
   const [slug, setSlug] = useState(cat.slug);
