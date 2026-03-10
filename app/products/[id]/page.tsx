@@ -1,7 +1,9 @@
+// app/products/[id]/page.tsx
 import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import type { Metadata } from 'next'
+import AddToCart from '@/components/AddToCart' // ✅ restore Add to Cart
 
 export const revalidate = 30
 
@@ -48,7 +50,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   if (error) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        <Link href="/products">← Back to products</Link>
+        /products← Back to products</Link>
         <h1 style={{ marginTop: 12 }}>Product</h1>
         <p style={{ color: 'crimson' }}>Failed to load product: {error.message}</p>
       </main>
@@ -56,6 +58,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   }
 
   const row: any = data ?? {}
+  // categories can be object or array depending on introspection; normalize
   const catRel = Array.isArray(row.categories) ? (row.categories[0] ?? null) : (row.categories ?? null)
   const catLabel: string | null = catRel?.label ?? null
   const catSlug: string = (catRel?.slug ?? '')?.toLowerCase() || ''
@@ -69,7 +72,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   if (!row?.id || row.is_active === false) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        <Link href="/products">← Back to products</Link>
+        /products← Back to products</Link>
         <h1 style={{ marginTop: 12 }}>Product not found</h1>
         <p style={{ color: '#666' }}>This product does not exist or is inactive.</p>
       </main>
@@ -79,7 +82,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
       <div style={{ marginBottom: 8, fontSize: 14 }}>
-        <Link href="/products">← Back to products</Link>
+        /products← Back to products</Link>
         {catSlug ? (
           <>
             <span style={{ color: '#aaa', margin: '0 8px' }}>/</span>
@@ -185,7 +188,30 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
             <div style={{ color: '#555', fontSize: 14, marginTop: 8 }}>Stock: {row.stock}</div>
           ) : null}
 
-          {row.description ? <div style={{ marginTop: 16, lineHeight: 1.6 }}>{row.description}</div> : null}
+          {row.description ? (
+            <div style={{ marginTop: 16, lineHeight: 1.6 }}>{row.description}</div>
+          ) : null}
+
+          {/* ✅ Restore actions */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 16 }}>
+            <AddToCart
+              productId={String(row.id)}
+              inStock={(row.stock ?? 0) > 0}
+              variantId={undefined}
+            />
+            <Link
+              href={`/checkout?product=${encodeURIComponent(String(row.id))}&qty=1`}
+              style={{
+                background: '#f59e0b',
+                color: '#111827',
+                padding: '8px 12px',
+                borderRadius: 8,
+                textDecoration: 'none',
+              }}
+            >
+              Buy Now
+            </Link>
+          </div>
         </div>
       </section>
     </main>
