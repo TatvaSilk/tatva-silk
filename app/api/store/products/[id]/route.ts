@@ -20,11 +20,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     if (p.category_id) {
       const { data: c, error: cErr } = await admin
         .from('categories')
-        .select('id, slug, label, parent_id')
+        .select('id, slug, label')
         .eq('id', p.category_id)
         .maybeSingle();
       if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
-      if (c) category = { id: c.id, slug: c.slug, label: c.label };
+      if (c) category = c as any;
     }
 
     const { data: imgs, error: iErr } = await admin
@@ -34,13 +34,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       .order('sort_order', { ascending: true });
     if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
 
-    const primary = imgs?.[0]?.url ?? null;
-
     return NextResponse.json({
       ...p,
       category,
       images: imgs ?? [],
-      primary_image_url: primary
+      primary_image_url: imgs?.[0]?.url ?? null
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? 'failed' }, { status: 500 });
