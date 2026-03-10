@@ -33,11 +33,11 @@ async function resolveChildSlug(q?: string) {
     .maybeSingle()
   if (bySlug?.slug && bySlug.parent_id) return bySlug.slug
 
-  // 2) label fallback
+  // 2) label contains (robust to minor spelling/case)
   const { data: byLabel } = await supabase
     .from('categories')
     .select('slug, parent_id')
-    .ilike('label', needle)
+    .ilike('label', `%${needle}%`)
     .maybeSingle()
   if (byLabel?.slug && byLabel.parent_id) return byLabel.slug
 
@@ -101,7 +101,7 @@ export default async function ProductsPage({
             <span>Filtered by: </span>
             <strong style={{ textTransform: 'capitalize' }}>{categoryParam}</strong>
             <span style={{ margin: '0 8px' }}>|</span>
-            <Link href="/products">Clear filter</Link>
+            /productsClear filter</Link>
           </div>
         ) : null}
       </div>
