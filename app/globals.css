@@ -4,24 +4,24 @@
    TatvaSilk Theme Variables
    ========================= */
 :root {
-  /* Brand palette (from your theme file) */
-  --ts-purple: #6C3B8B;     /* primary brand */
-  --ts-teal:   #0A5C5A;     /* secondary */
-  --ts-gold:   #F5B500;     /* accent CTA */
-  --ts-lilac:  #E7DFF2;     /* soft bg for cards/hero */
-  --ts-ink:    #3D405B;     /* deep text / badges */
-  --ts-mint:   #81B29A;     /* supporting accent */
-  --ts-sand:   #F2CC8F;     /* supporting accent 2 */
+  /* Brand palette */
+  --ts-purple: #6C3B8B;   /* primary brand */
+  --ts-teal:   #0A5C5A;   /* secondary */
+  --ts-gold:   #F5B500;   /* accent CTA */
+  --ts-lilac:  #E7DFF2;   /* soft bg for cards/hero */
+  --ts-ink:    #3D405B;   /* deep text / badges */
+  --ts-mint:   #81B29A;   /* supporting accent */
+  --ts-sand:   #F2CC8F;   /* supporting accent 2 */
 
-  /* UI tokens (mapped to brand) */
-  --bg:        #f7f8fc;     /* page gradient end */
-  --bg-top:    #eef2ff;     /* page gradient start */
+  /* UI tokens */
+  --bg:        #f7f8fc;   /* page gradient end */
+  --bg-top:    #eef2ff;   /* page gradient start */
   --card:      #ffffff;
-  --text:      #2E2E2E;     /* from theme.foreground */
+  --text:      #2E2E2E;
   --muted:     #6b7280;
-  --brand:     #3D405B;     /* header dark base (ts-ink) */
-  --brand-2:   #2f3148;     /* a hair darker than ts-ink */
-  --accent:    #6C3B8B;     /* links/buttons (ts-purple) */
+  --brand:     #3D405B;   /* header dark base */
+  --brand-2:   #2f3148;   /* slightly darker */
+  --accent:    #6C3B8B;   /* links/buttons */
   --ring:      rgba(108, 59, 139, 0.25);
   --border:    #e5e7eb;
 
@@ -30,17 +30,47 @@
   --badge-text: #ffffff;
   --cta-bg:     #F5B500;    /* gold */
   --cta-text:   #111111;
-  --cta-border: #ffcf33;    /* slightly lighter gold */
+  --cta-border: #ffcf33;
+
+  /* Typography scale */
+  --font-system: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI,
+                  Roboto, "Noto Sans", Ubuntu, "Helvetica Neue", Arial,
+                  "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+  --fs-11: 11px;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-15: 15px;
+  --fs-16: 16px;
+  --fs-18: 18px;
+  --fs-20: 20px;
+  --fs-22: 22px;
+
+  /* Elevation */
+  --shadow-1: 0 2px 10px rgba(61,64,91,0.05);
+  --shadow-2: 0 6px 18px rgba(61,64,91,0.08);
+  --shadow-3: 0 10px 30px rgba(0,0,0,.12);
 }
 
-/* Reset & base */
+/* =========================
+   Reset & base
+   ========================= */
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-system);
   color: var(--text);
   background: linear-gradient(var(--bg-top), var(--bg)) no-repeat fixed;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+a { color: inherit; text-decoration: none; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 /* Container */
@@ -60,66 +90,95 @@ body {
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
+/* Grid tuned for logo clarity + nav balance */
 .header-row {
   display: grid;
-  grid-template-columns: 180px 220px 1fr 380px 120px 120px 60px;
-  gap: 10px;
+  grid-template-columns: 200px 1fr 320px 120px 120px 70px;
+  gap: 12px;
   align-items: center;
 }
-@media (max-width: 1100px) {
-  .header-row { grid-template-columns: 160px 1fr 120px 60px; }
+@media (max-width: 1200px) {
+  .header-row { grid-template-columns: 180px 1fr 280px 120px 70px; }
+}
+@media (max-width: 990px) {
+  .header-row { grid-template-columns: 160px 1fr 60px; }
   .hide-md { display: none; }
 }
 
+/* Logo: stronger weight & spacing for crisper look */
 .logo {
-  display: flex; align-items: center; gap: 10px; font-weight: 700;
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 800; letter-spacing: 0.1px;
+  color: #fff;
 }
 .logo-badge {
-  background: var(--accent);  /* purple brand */
+  background: var(--accent);
   color: #fff;
-  width: 28px; height: 28px;
+  width: 34px; height: 34px;
   display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 6px; font-weight: 800;
+  border-radius: 8px; font-weight: 900; font-size: var(--fs-14);
   box-shadow: 0 0 0 2px rgba(255,255,255,0.12);
 }
-
-.addr, .lang, .account {
-  font-size: 12px; color: #e5e7eb;
+.logo-text {
+  font-size: var(--fs-16);
+  line-height: 1;
+  text-rendering: optimizeLegibility;
 }
-.addr strong, .account strong { display: block; color: #fff; font-size: 13px; }
 
+/* Small header atoms */
+.addr, .lang, .account {
+  font-size: var(--fs-12); color: #e5e7eb;
+}
+.addr strong, .account strong { display: block; color: #fff; font-size: var(--fs-13); }
+
+/* Search: clearer ring + tighter radius */
 .search {
-  background: #fff; display: flex; border-radius: 8px; overflow: hidden;
-  border: 1px solid var(--border);
-  box-shadow: 0 0 0 0 transparent;
+  background: #fff; display: flex; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--border); box-shadow: 0 0 0 0 transparent;
 }
 .search:focus-within { box-shadow: 0 0 0 3px var(--ring); }
 .search select, .search input {
-  border: none; outline: none; padding: 10px; font-size: 14px;
+  border: none; outline: none; padding: 10px; font-size: var(--fs-14);
 }
 .search select {
   background: #f3f4f6; border-right: 1px solid var(--border); min-width: 72px;
 }
 .search button {
   background: var(--accent); color: #fff; border: none; padding: 0 14px; cursor: pointer;
+  font-weight: 700; letter-spacing: 0.2px;
 }
-.nav-link { color: #e5e7eb; text-decoration: none; font-size: 13px; }
-.cart { font-weight: 700; }
+
+/* Links in header */
+.nav-link { color: #e5e7eb; text-decoration: none; font-size: var(--fs-13); }
+.nav-link:hover { color: var(--ts-sand); }
+.cart { font-weight: 800; }
 
 /* =========================
-   Category strip
+   Category strip (sub‑nav)
    ========================= */
 .cat-strip {
   background: #fff; border-bottom: 1px solid var(--border);
 }
 .cat-list {
   display: flex; gap: 18px; padding: 10px 0; overflow: auto;
+  scrollbar-width: thin;
 }
 .cat-list a {
-  color: var(--brand); text-decoration: none; font-weight: 600; font-size: 14px;
-  padding: 6px 8px; border-radius: 6px;
+  color: var(--brand);
+  font-weight: 700;               /* stronger, crisper category text */
+  font-size: var(--fs-14);
+  letter-spacing: 0.1px;
+  padding: 6px 10px; border-radius: 8px;
+  text-decoration: none; white-space: nowrap;
+  transition: background-color .15s ease, color .15s ease, box-shadow .15s ease;
 }
 .cat-list a:hover { background: #f3f4f6; }
+.cat-list a:focus-visible { box-shadow: 0 0 0 3px var(--ring); }
+.cat-list a.active {
+  background: var(--ts-lilac);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(108,59,139,0.18);
+}
 
 /* =========================
    Hero banner
@@ -127,7 +186,7 @@ body {
 .hero {
   position: relative; background: #fff; border: 1px solid var(--border);
   border-radius: 12px; overflow: hidden;
-  box-shadow: 0 6px 18px rgba(61,64,91,0.07);
+  box-shadow: var(--shadow-2);
 }
 .hero-inner { display: grid; grid-template-columns: 1.3fr 1fr; }
 @media (max-width: 900px) { .hero-inner { grid-template-columns: 1fr; } }
@@ -135,15 +194,16 @@ body {
 .hero h2 { margin: 0 0 8px; font-size: 28px; color: var(--brand); }
 .hero p { margin: 0 0 14px; color: var(--muted); }
 .hero .cta {
-  display: inline-block; background: var(--cta-bg); color: var(--cta-text); font-weight: 700;
-  padding: 10px 14px; border-radius: 8px; text-decoration: none; border: 1px solid var(--cta-border);
+  display: inline-block; background: var(--cta-bg); color: var(--cta-text); font-weight: 800;
+  padding: 10px 14px; border-radius: 10px; text-decoration: none; border: 1px solid var(--cta-border);
 }
 
 /* =========================
-   Carousel / product cards
+   Section titles / product cards
    ========================= */
 .section-title {
-  margin: 22px 0 12px; font-size: 18px; font-weight: 800; color: var(--brand);
+  margin: 22px 0 12px; font-size: var(--fs-18); font-weight: 900; color: var(--brand);
+  letter-spacing: .2px;
 }
 
 .carousel {
@@ -154,14 +214,21 @@ body {
 .card {
   background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
   display: flex; flex-direction: column; scroll-snap-align: start;
-  box-shadow: 0 2px 10px rgba(61,64,91,0.05);
+  box-shadow: var(--shadow-1);
+  transition: transform .12s ease, box-shadow .12s ease;
 }
+.card:hover { transform: translateY(-1px); box-shadow: var(--shadow-2); }
 .card-img { position: relative; width: 100%; height: 150px; background: var(--ts-lilac); }
 .card-body { padding: 10px; display: grid; gap: 6px; }
-.card-name { font-weight: 700; font-size: 14px; line-height: 1.3; min-height: 38px; color: var(--brand); }
-.card-meta { color: var(--muted); font-size: 12px; }
-.price { font-weight: 800; color: var(--accent); }
-.badges { display: flex; gap: 8px; }
+.card-name {
+  font-weight: 800; font-size: var(--fs-14); line-height: 1.3;
+  min-height: 38px; color: var(--brand);
+}
+.card-meta { color: var(--muted); font-size: var(--fs-12); }
+.price { font-weight: 900; color: var(--accent); }
+
+/* Badges */
+.badges { display: flex; gap: 8px; flex-wrap: wrap; }
 .badge {
   background: var(--badge); color: var(--badge-text); font-size: 11px;
   padding: 2px 6px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12);
@@ -170,8 +237,44 @@ body {
 .badge--under1k { background: var(--ts-mint); color: #0f172a; }
 
 /* =========================
+   Product detail (gallery helpers)
+   ========================= */
+.pg-wrap {
+  display: grid; grid-template-columns: 86px 1fr; gap: 12px; align-items: start;
+}
+.pg-thumbs {
+  display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; padding-right: 2px;
+}
+.pg-thumb {
+  width: 74px; height: 74px; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--border); background: #fff; padding: 0; cursor: pointer;
+}
+.pg-thumb--active { border: 2px solid var(--accent); }
+.pg-main {
+  position: relative; width: 100%; height: 420px; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--border); background: #fff;
+}
+
+/* =========================
    Footer
    ========================= */
 .footer {
-  color: #6b7280; font-size: 13px; padding: 24px 0 60px; text-align: center;
+  color: #6b7280; font-size: var(--fs-13); padding: 24px 0 60px; text-align: center;
 }
+
+/* =========================
+   Utilities
+   ========================= */
+.text-muted { color: var(--muted); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 1px solid var(--border); background: #fff; color: var(--text);
+  padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 700;
+}
+.btn--primary {
+  background: var(--accent); color: #fff; border-color: transparent;
+}
+.btn--gold {
+  background: var(--cta-bg); color: var(--cta-text); border-color: var(--cta-border);
+}
+.btn:disabled { opacity: .6; cursor: not-allowed; }
