@@ -28,7 +28,6 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 export default async function ProductDetailPage({ params }: { params: { id: string } }) {
   const productId = params.id
 
-  // JOIN categories via category_id and pull images
   const { data, error } = await supabase
     .from('products')
     .select(`
@@ -49,7 +48,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   if (error) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        /products← Back to products</Link>
+        <Link href="/products">← Back to products</Link>
         <h1 style={{ marginTop: 12 }}>Product</h1>
         <p style={{ color: 'crimson' }}>Failed to load product: {error.message}</p>
       </main>
@@ -57,7 +56,6 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   }
 
   const row: any = data ?? {}
-  // categories can be object or array depending on Types metadata — normalize it:
   const catRel = Array.isArray(row.categories) ? (row.categories[0] ?? null) : (row.categories ?? null)
   const catLabel: string | null = catRel?.label ?? null
   const catSlug: string = (catRel?.slug ?? '')?.toLowerCase() || ''
@@ -71,7 +69,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   if (!row?.id || row.is_active === false) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        /products← Back to products</Link>
+        <Link href="/products">← Back to products</Link>
         <h1 style={{ marginTop: 12 }}>Product not found</h1>
         <p style={{ color: '#666' }}>This product does not exist or is inactive.</p>
       </main>
@@ -81,7 +79,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
       <div style={{ marginBottom: 8, fontSize: 14 }}>
-        /products← Back to products</Link>
+        <Link href="/products">← Back to products</Link>
         {catSlug ? (
           <>
             <span style={{ color: '#aaa', margin: '0 8px' }}>/</span>
