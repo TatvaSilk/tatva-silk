@@ -20,7 +20,7 @@ function pickFirstImage(images: ProductImage[] = []) {
   return imgs[0] ?? null
 }
 
-/** Convert whatever is in ?category= (slug or label) to the true CHILD slug */
+/** Convert ?category= (slug or label) to the true CHILD slug */
 async function resolveChildSlug(q?: string) {
   if (!q) return null
   const needle = q.trim().toLowerCase()
@@ -33,7 +33,7 @@ async function resolveChildSlug(q?: string) {
     .maybeSingle()
   if (bySlug?.slug && bySlug.parent_id) return bySlug.slug
 
-  // 2) label contains (robust to minor spelling/case)
+  // 2) label contains
   const { data: byLabel } = await supabase
     .from('categories')
     .select('slug, parent_id')
@@ -73,8 +73,7 @@ export default async function ProductsPage({
       product_images ( url, alt, sort_order )
     `
     )
-    .eq('is_active', true)
-    .order('created_at', { ascending: false })
+  query = query.eq('is_active', true).order('created_at', { ascending: false })
 
   if (resolvedSlug) {
     query = query.eq('categories.slug', resolvedSlug)
@@ -101,7 +100,7 @@ export default async function ProductsPage({
             <span>Filtered by: </span>
             <strong style={{ textTransform: 'capitalize' }}>{categoryParam}</strong>
             <span style={{ margin: '0 8px' }}>|</span>
-            /productsClear filter</Link>
+            <Link href="/products">Clear filter</Link>
           </div>
         ) : null}
       </div>
@@ -123,7 +122,16 @@ export default async function ProductsPage({
             return (
               <article key={r.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
                 {firstImage ? (
-                  <div style={{ position: 'relative', width: '100%', height: 180, borderRadius: 8, overflow: 'hidden', marginBottom: 8 }}>
+                  <div
+                    style={{
+                      position: 'relative',
+                      width: '100%',
+                      height: 180,
+                      borderRadius: 8,
+                      overflow: 'hidden',
+                      marginBottom: 8,
+                    }}
+                  >
                     <Image
                       src={firstImage.url!}
                       alt={firstImage.alt ?? r.name ?? 'Product image'}
