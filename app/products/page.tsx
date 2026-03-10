@@ -2,7 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
-export const revalidate = 30
+export const revalidate = 30 // Rebuild at most once every 30s
 
 type ProductImage = { url: string | null; alt: string | null; sort_order: number | null }
 type Product = {
@@ -39,11 +39,8 @@ export default async function ProductsPage({
     ? searchParams?.category[0]
     : searchParams?.category) as string | undefined
 
-  // JOIN categories via category_id; filter by categories.slug if provided
-  let query = supabase
-    .from('products')
-    .select(
-      `
+  // Join categories via category_id; if filtering by slug, use inner join; else left is fine
+  let selectRel = `
       id,
       name,
       original_price,
@@ -53,7 +50,10 @@ export default async function ProductsPage({
       categories:category_id!inner ( slug, label ),
       product_images ( url, alt, sort_order )
     `
-    )
+
+  let query = supabase
+    .from('products')
+    .select(selectRel)
     .eq('is_active', true)
     .order('name', { ascending: true })
 
@@ -82,7 +82,7 @@ export default async function ProductsPage({
             <span>Filtered by: </span>
             <strong style={{ textTransform: 'capitalize' }}>{categorySlug}</strong>
             <span style={{ margin: '0 8px' }}>|</span>
-            /productsClear filter</Link>
+            <Link href="/products">Clear filter</Link>
           </div>
         ) : null}
       </div>
@@ -133,14 +133,21 @@ export default async function ProductsPage({
 
                 {label ? (
                   <div style={{ color: '#777', fontSize: 12, marginBottom: 6 }}>
-                    /products?category=${encodeURIComponent(slug)}{label.toLowerCase()}</Link>
+                    <Link
+                      href={`/products?category=${encodeURIComponent(slug)}`}
+                      className="hover:underline"
+                    >
+                      {label.toLowerCase()}
+                    </Link>
                   </div>
                 ) : null}
 
                 <div style={{ fontWeight: 600 }}>{formatInr(effectivePrice)}</div>
 
                 <div style={{ marginTop: 10 }}>
-                  /products/${p.id}View details →</Link>
+                  <Link href={`/products/${p.id}`} style={{ color: '#2563eb' }}>
+                    View details →
+                  </Link>
                 </div>
               </article>
             )
