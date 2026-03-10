@@ -5,119 +5,191 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 
+/**
+ * Server-side client that can read the caller's auth token (Bearer) to
+ * identify the admin/manager and apply role checks, while actual data
+ * reads/writes are performed with the service-role client.
+ */
 function clientFromToken(token?: string) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   return createClient(url, anon, {
     global: token ? { headers: { Authorization: `Bearer ${token}` } } : {},
-    auth: { persistSession: false, autoRefreshToken: false }
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
-// GET /api/admin/products -> list + primary_image_url
+/**
+ * GET /api/admin/products
+ * Returns admin list with:
+ *  - primary_image_url (first image by sort_order)
+ *  - category_label (resolved from products.category_id)
+ */
 export async function GET(req: NextRequest) {
+  // 1) Auth (admin/manager + approved)
   const auth = req.headers.get('authorization') ?? '';
   const token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7) : undefined;
-
   const supabase = clientFromToken(token);
+
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
 
   const { data: me } = await supabase
-    .from('profiles').select('role, approved').eq('id', user.id).single();
-  if (!me || me.approved !== true || !['admin','manager'].includes(me.role as any)) {
+    .from('profiles')
+    .select('role, approved')
+    .eq('id', user.id)
+    .single();
+  if (!me || me.approved !== true || !['admin', 'manager'].includes(me.role as any)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
+  // 2) Read products (no products.image column; we join product_images)
   const admin = supabaseAdmin();
-  // Products (no image column)
+
   const { data: products, error: pErr } = await admin
     .from('products')
     .select('id, name, original_price, offer_price, stock, category_id, created_at')
     .order('created_at', { ascending: false });
-  if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
 
+  if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
   if (!products?.length) return NextResponse.json([]);
 
-  // First image per product
-  const ids = products.map(p => p.id);
+  // 3) Find the first image for each product (small thumbnail)
+  const ids = products.map((p) => p.id);
   const { data: imgs, error: iErr } = await admin
     .from('product_images')
     .select('product_id, url, sort_order')
     .in('product_id', ids)
     .order('sort_order', { ascending: true });
+
   if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
 
-  const first = new Map<string, string|null>();
-  for (const id of ids) first.set(id, null);
+  const firstMap = new Map<string, string | null>();
+  for (const id of ids) firstMap.set(id, null);
   for (const row of imgs ?? []) {
-    if (!first.get(row.product_id as string)) first.set(row.product_id as string, row.url as string);
+    const pid = row.product_id as string;
+    // only set if not set yet – this guarantees we take the first (lowest sort_order)
+    if (!firstMap.get(pid)) firstMap.set(pid, row.url as string);
   }
 
-  // Optional: join categories (label) (simple second query)
-  const catIds = Array.from(new Set(products.map(p => p.category_id).filter(Boolean))) as string[];
-  const labels = new Map<string,string>();
+  // 4) Resolve category labels from products.category_id
+  const catIds = Array.from(new Set(products.map((p) => p.category_id).filter(Boolean))) as string[];
+  const labelMap = new Map<string, string>();
   if (catIds.length) {
-    const { data: cats } = await admin.from('categories').select('id,label').in('id', catIds);
-    for (const c of cats ?? []) labels.set(c.id, c.label);
+    const { data: cats, error: cErr } = await admin
+      .from('categories')
+      .select('id, label')
+      .in('id', catIds);
+
+    if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
+    for (const c of cats ?? []) labelMap.set(c.id, c.label);
   }
 
-  const result = products.map(p => ({
+  // 5) Final payload for the table
+  const result = products.map((p) => ({
     ...p,
-    category_label: p.category_id ? (labels.get(p.category_id) ?? null) : null,
-    primary_image_url: first.get(p.id) ?? null
+    category_label: p.category_id ? labelMap.get(p.category_id) ?? null : null,
+    primary_image_url: firstMap.get(p.id) ?? null,
   }));
 
   return NextResponse.json(result);
 }
 
-// POST /api/admin/products -> create (with optional image_url -> product_images sort_order=1)
+/**
+ * POST /api/admin/products
+ * Creates product, optionally sets primary image (image_url -> product_images sort_order=1).
+ * Body:
+ *  {
+ *    name: string,
+ *    description?: string | null,
+ *    original_price: number,
+ *    offer_price?: number | null,
+ *    stock: number,
+ *    category_id?: string | null,   // <-- subcategory id
+ *    image_url?: string | null      // <-- optional, creates/sets first image
+ *  }
+ */
 export async function POST(req: NextRequest) {
+  // 1) Auth (admin/manager + approved)
   const auth = req.headers.get('authorization') ?? '';
   const token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7) : undefined;
-
   const supabase = clientFromToken(token);
+
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
 
   const { data: me } = await supabase
-    .from('profiles').select('role, approved').eq('id', user.id).single();
-  if (!me || me.approved !== true || !['admin','manager'].includes(me.role as any)) {
+    .from('profiles')
+    .select('role, approved')
+    .eq('id', user.id)
+    .single();
+  if (!me || me.approved !== true || !['admin', 'manager'].includes(me.role as any)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
+  // 2) Validate payload
   const body = await req.json();
   const payload: any = {
     name: String(body.name ?? '').trim(),
     description: body.description ? String(body.description) : null,
     original_price: Number(body.original_price ?? 0),
-    offer_price: body.offer_price == null || body.offer_price === '' ? null : Number(body.offer_price),
+    offer_price:
+      body.offer_price == null || body.offer_price === ''
+        ? null
+        : Number(body.offer_price),
     stock: Number(body.stock ?? 0),
-    category_id: body.category_id ?? null
+    category_id: body.category_id ?? null, // subcategory id
   };
   const imageUrl: string | null = body.image_url ? String(body.image_url) : null;
 
-  if (!payload.name) return NextResponse.json({ error: 'name-required' }, { status: 400 });
-  if (Number.isNaN(payload.original_price) || payload.original_price < 0) return NextResponse.json({ error: 'invalid-original-price' }, { status: 400 });
-  if (payload.offer_price !== null && (Number.isNaN(payload.offer_price) || payload.offer_price < 0)) return NextResponse.json({ error: 'invalid-offer-price' }, { status: 400 });
-  if (!Number.isInteger(payload.stock) || payload.stock < 0) return NextResponse.json({ error: 'invalid-stock' }, { status: 400 });
+  if (!payload.name) {
+    return NextResponse.json({ error: 'name-required' }, { status: 400 });
+  }
+  if (Number.isNaN(payload.original_price) || payload.original_price < 0) {
+    return NextResponse.json({ error: 'invalid-original-price' }, { status: 400 });
+  }
+  if (
+    payload.offer_price !== null &&
+    (Number.isNaN(payload.offer_price) || payload.offer_price < 0)
+  ) {
+    return NextResponse.json({ error: 'invalid-offer-price' }, { status: 400 });
+  }
+  if (!Number.isInteger(payload.stock) || payload.stock < 0) {
+    return NextResponse.json({ error: 'invalid-stock' }, { status: 400 });
+  }
 
+  // 3) Insert product (service-role)
   const admin = supabaseAdmin();
   const { data: created, error: cErr } = await admin
     .from('products')
     .insert(payload)
     .select('id, name, original_price, offer_price, stock, category_id, created_at')
     .single();
+
   if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
 
+  // 4) If image_url was provided, create primary image (sort_order=1)
   if (imageUrl) {
     const { error: iErr } = await admin
       .from('product_images')
-      .insert({ product_id: created.id, url: imageUrl, alt: created.name, sort_order: 1 });
+      .insert({
+        product_id: created.id,
+        url: imageUrl,
+        alt: created.name,
+        sort_order: 1,
+      });
+
     if (iErr) {
-      return NextResponse.json({ ...created, primary_image_url: null, warning: 'image-insert-failed' }, { status: 201 });
+      // Not fatal: product created, but image insert failed
+      return NextResponse.json(
+        { ...created, primary_image_url: null, warning: 'image-insert-failed' },
+        { status: 201 }
+      );
     }
   }
 
-  return NextResponse.json({ ...created, primary_image_url: imageUrl ?? null }, { status: 201 });
+  return NextResponse.json(
+    { ...created, primary_image_url: imageUrl ?? null },
+    { status: 201 }
+  );
 }
