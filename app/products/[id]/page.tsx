@@ -50,7 +50,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   if (error) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        /products← Back to products</Link>
+        <Link href="/products">← Back to products</Link>
         <h1 style={{ marginTop: 12 }}>Product</h1>
         <p style={{ color: 'crimson' }}>Failed to load product: {error.message}</p>
       </main>
@@ -72,7 +72,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   if (!row?.id || row.is_active === false) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        /products← Back to products</Link>
+        <Link href="/products">← Back to products</Link>
         <h1 style={{ marginTop: 12 }}>Product not found</h1>
         <p style={{ color: '#666' }}>This product does not exist or is inactive.</p>
       </main>
@@ -82,7 +82,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
       <div style={{ marginBottom: 8, fontSize: 14 }}>
-        /products← Back to products</Link>
+        <Link href="/products">← Back to products</Link>
         {catSlug ? (
           <>
             <span style={{ color: '#aaa', margin: '0 8px' }}>/</span>
