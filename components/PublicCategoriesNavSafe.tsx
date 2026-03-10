@@ -6,13 +6,9 @@ import Link from 'next/link';
 type Cat = { id: string; label: string; slug: string; parent_id: string | null; children?: Cat[] };
 
 type Props = {
-  /** Show children of this parent (e.g., "sarees"), or leave blank to use first parent */
   parentSlug?: string;
-  /** Limit how many child links to render (optional) */
   limit?: number;
-  /** Show ALL children from ALL parents (optional) */
   showAllChildren?: boolean;
-  /** Optional classes to match your theme */
   linkClassName?: string;
   itemClassName?: string;
 };
@@ -31,7 +27,6 @@ export default function PublicCategoriesNavSafe({
     let alive = true;
     (async () => {
       try {
-        setLoading(true);
         const res = await fetch('/api/store/categories', { cache: 'no-store' });
         if (!res.ok) throw new Error('Failed to fetch categories');
         const data: Cat[] = await res.json();
@@ -52,7 +47,7 @@ export default function PublicCategoriesNavSafe({
       const p = parents.find(x => (x.slug ?? '').toLowerCase() === parentSlug.toLowerCase());
       return p?.children ?? [];
     }
-    return parents[0]?.children ?? []; // default: first parent’s children
+    return parents[0]?.children ?? [];
   }, [parents, parentSlug, showAllChildren]);
 
   const items = useMemo(() => {
