@@ -2,7 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
-export const revalidate = 30 // Rebuild at most once every 30s
+export const revalidate = 30
 
 type ProductImage = { url: string | null; alt: string | null; sort_order: number | null }
 type Product = {
@@ -12,7 +12,6 @@ type Product = {
   offer_price: number | null
   stock: number | null
   is_active?: boolean | null
-  // relation
   categories?: { slug: string | null; label: string | null } | null
   product_images?: ProductImage[]
 }
@@ -21,11 +20,9 @@ function formatInr(n: number | null | undefined) {
   if (typeof n !== 'number') return '—'
   return `₹${n.toLocaleString('en-IN')}`
 }
-
 function isValidHttpUrl(u?: string | null) {
   return typeof u === 'string' && /^https?:\/\//i.test(u)
 }
-
 function pickFirstImage(p: Product) {
   const imgs = (p.product_images ?? [])
     .filter((img) => isValidHttpUrl(img.url))
@@ -38,13 +35,11 @@ export default async function ProductsPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined }
 }) {
-  // We will filter by subcategory **slug** (child), not the legacy text column
   const categorySlug = (Array.isArray(searchParams?.category)
     ? searchParams?.category[0]
     : searchParams?.category) as string | undefined
 
-  // Build a query that **joins categories by category_id** and (optionally) filters on categories.slug.
-  // The !inner forces an inner join so .eq('categories.slug', ...) works.
+  // JOIN categories via category_id; filter by categories.slug if provided
   let query = supabase
     .from('products')
     .select(
@@ -55,7 +50,7 @@ export default async function ProductsPage({
       offer_price,
       stock,
       is_active,
-      categories:category_id!inner ( slug, label ),   -- join to categories
+      categories:category_id!inner ( slug, label ),
       product_images ( url, alt, sort_order )
     `
     )
@@ -112,10 +107,7 @@ export default async function ProductsPage({
             const slug = (p.categories?.slug ?? '')?.toLowerCase() || ''
 
             return (
-              <article
-                key={p.id}
-                style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}
-              >
+              <article key={p.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
                 {firstImage ? (
                   <div
                     style={{
@@ -127,11 +119,12 @@ export default async function ProductsPage({
                       marginBottom: 8,
                     }}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                    <Image
                       src={firstImage.url!}
                       alt={firstImage.alt ?? p.name ?? 'Product image'}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      style={{ objectFit: 'cover' }}
                     />
                   </div>
                 ) : null}
@@ -140,12 +133,7 @@ export default async function ProductsPage({
 
                 {label ? (
                   <div style={{ color: '#777', fontSize: 12, marginBottom: 6 }}>
-                    <Link
-                      href={`/products?category=${encodeURIComponent(slug)}`}
-                      className="hover:underline"
-                    >
-                      {label.toLowerCase()}
-                    </Link>
+                    /products?category=${encodeURIComponent(slug)}{label.toLowerCase()}</Link>
                   </div>
                 ) : null}
 
@@ -162,3 +150,4 @@ export default async function ProductsPage({
     </main>
   )
 }
+``
