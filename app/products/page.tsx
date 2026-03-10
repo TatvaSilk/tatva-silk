@@ -2,7 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
-export const revalidate = 30 // Rebuild at most once every 30s
+export const revalidate = 0
 
 type ProductImage = { url: string | null; alt: string | null; sort_order: number | null }
 
@@ -20,16 +20,44 @@ function pickFirstImage(images: ProductImage[] = []) {
   return imgs[0] ?? null
 }
 
+/** Convert whatever is in ?category= (slug or label) to the true CHILD slug */
+async function resolveChildSlug(q?: string) {
+  if (!q) return null
+  const needle = q.trim().toLowerCase()
+
+  // 1) try exact slug first
+  const { data: bySlug } = await supabase
+    .from('categories')
+    .select('slug, parent_id')
+    .eq('slug', needle)
+    .maybeSingle()
+  if (bySlug?.slug && bySlug.parent_id) return bySlug.slug
+
+  // 2) fallback: try label match (case-insensitive)
+  const { data: byLabel } = await supabase
+    .from('categories')
+    .select('slug, parent_id')
+    .ilike('label', needle)
+    .maybeSingle()
+  if (byLabel?.slug && byLabel.parent_id) return byLabel.slug
+
+  return null
+}
+
 export default async function ProductsPage({
   searchParams,
 }: {
   searchParams?: { [key: string]: string | string[] | undefined }
 }) {
-  const categorySlug = (Array.isArray(searchParams?.category)
+  const categoryParam = (Array.isArray(searchParams?.category)
     ? searchParams?.category[0]
     : searchParams?.category) as string | undefined
 
-  const categoriesRel = categorySlug
+  const resolvedSlug = await resolveChildSlug(categoryParam)
+
+  // Relation selector:
+  // - when filtering by category, we need !inner to allow filtering on the joined relation
+  const categoriesRel = resolvedSlug
     ? 'categories:category_id!inner ( slug, label )'
     : 'categories:category_id ( slug, label )'
 
@@ -48,10 +76,11 @@ export default async function ProductsPage({
     `
     )
     .eq('is_active', true)
-  if (categorySlug && categorySlug.trim().length > 0) {
-    query = query.eq('categories.slug', categorySlug.toLowerCase())
+    .order('created_at', { ascending: false })
+
+  if (resolvedSlug) {
+    query = query.eq('categories.slug', resolvedSlug)
   }
-  query = query.order('name', { ascending: true })
 
   const { data, error } = await query
   if (error) {
@@ -69,28 +98,22 @@ export default async function ProductsPage({
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <h1 style={{ margin: 0 }}>Products</h1>
-        {categorySlug ? (
+        {categoryParam ? (
           <div style={{ fontSize: 14, color: '#555' }}>
             <span>Filtered by: </span>
-            <strong style={{ textTransform: 'capitalize' }}>{categorySlug}</strong>
+            <strong style={{ textTransform: 'capitalize' }}>{categoryParam}</strong>
             <span style={{ margin: '0 8px' }}>|</span>
-            <Link href="/products">Clear filter</Link>
+            /productsClear filter</Link>
           </div>
         ) : null}
       </div>
 
       {rows.length === 0 ? (
         <p style={{ color: '#666' }}>
-          {categorySlug ? `No products found in "${categorySlug}".` : 'No products found.'}
+          {categoryParam ? `No products found in "${categoryParam}".` : 'No products found.'}
         </p>
       ) : (
-        <section
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-            gap: 16,
-          }}
-        >
+        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
           {rows.map((r) => {
             const rel = Array.isArray(r.categories) ? (r.categories[0] ?? null) : (r.categories ?? null)
             const label: string | null = rel?.label ?? null
@@ -102,16 +125,7 @@ export default async function ProductsPage({
             return (
               <article key={r.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
                 {firstImage ? (
-                  <div
-                    style={{
-                      position: 'relative',
-                      width: '100%',
-                      height: 180,
-                      borderRadius: 8,
-                      overflow: 'hidden',
-                      marginBottom: 8,
-                    }}
-                  >
+                  <div style={{ position: 'relative', width: '100%', height: 180, borderRadius: 8, overflow: 'hidden', marginBottom: 8 }}>
                     <Image
                       src={firstImage.url!}
                       alt={firstImage.alt ?? r.name ?? 'Product image'}
@@ -147,4 +161,3 @@ export default async function ProductsPage({
     </main>
   )
 }
-``
