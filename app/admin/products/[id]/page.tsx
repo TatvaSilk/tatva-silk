@@ -26,7 +26,6 @@ export default function EditProductPage() {
     return data?.session?.access_token;
   }
 
-  // Load the product
   useEffect(() => {
     (async () => {
       try {
@@ -41,12 +40,10 @@ export default function EditProductPage() {
           throw new Error(j?.error ?? res.statusText);
         }
         const data = await res.json();
-
-        // Prime the form. image_url maps to primary_image_url for convenience.
         setForm({
-          ...data,
+          ...data,                       // includes category_id
           image_url: data.primary_image_url ?? '',
-          category_parent_id: '' // we will derive and set this right below after we load all categories
+          category_parent_id: ''         // derived next
         });
       } catch (e: any) {
         setErr(e?.message ?? 'Failed to load product.');
@@ -54,7 +51,6 @@ export default function EditProductPage() {
     })();
   }, [id]);
 
-  // Load ALL categories once, compute parents and children, and pre-select the product's current parent/child.
   useEffect(() => {
     (async () => {
       try {
@@ -64,20 +60,17 @@ export default function EditProductPage() {
         const ps = all.filter(c => c.parent_id === null);
         setParents(ps);
 
-        // If product already has a subcategory assigned, figure out its parent and set the child list.
         if (form?.category_id) {
           const current = all.find(c => c.id === form.category_id);
           const parentId = current?.parent_id ?? '';
           set('category_parent_id', parentId);
-          const kids = all.filter(c => c.parent_id === parentId);
-          setChildren(kids);
+          setChildren(all.filter(c => c.parent_id === parentId));
         }
       } catch {}
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form?.category_id]);
 
-  // When parent selection changes, load children (server-filtered) and reset child if needed
   useEffect(() => {
     (async () => {
       if (!form?.category_parent_id) {
@@ -97,14 +90,12 @@ export default function EditProductPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form?.category_parent_id]);
 
-  // Device file picker
   function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? []);
     setFiles(prev => [...prev, ...picked]);
     e.target.value = '';
   }
 
-  // Upload additional files to Storage and attach them with increasing sort_order
   async function uploadFilesToStorage(productId: string, token: string) {
     if (!files.length) return;
     const supabase = supabaseBrowser();
@@ -137,16 +128,10 @@ export default function EditProductPage() {
         name: String(form.name ?? '').trim(),
         description: form.description ?? null,
         original_price: Number(form.original_price ?? 0),
-        offer_price:
-          form.offer_price === '' || form.offer_price === null
-            ? null
-            : Number(form.offer_price),
+        offer_price: form.offer_price === '' || form.offer_price === null ? null : Number(form.offer_price),
         stock: Number(form.stock ?? 0),
-        category_id: form.category_id || null, // save SUBCATEGORY id here
-        image_url:
-          form.image_url === '' || form.image_url === null
-            ? null
-            : String(form.image_url).trim()
+        category_id: form.category_id || null,  // save child id
+        image_url: form.image_url === '' || form.image_url === null ? null : String(form.image_url).trim()
       };
 
       if (!payload.name) throw new Error('Name is required.');
@@ -162,7 +147,6 @@ export default function EditProductPage() {
       }
       await res.json();
 
-      // Upload any newly selected images and attach them
       await uploadFilesToStorage(id as string, token);
 
       router.replace('/admin/products');
@@ -180,75 +164,28 @@ export default function EditProductPage() {
     <div style={{ maxWidth: 700 }}>
       <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Edit Product</h1>
       <div style={{ display: 'grid', gap: 10 }}>
-        <input
-          style={input}
-          value={form.name ?? ''}
-          onChange={e => set('name', e.target.value)}
-          placeholder="Name"
-        />
+        <input style={input} value={form.name ?? ''} onChange={e => set('name', e.target.value)} placeholder="Name" />
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <input
-            style={input}
-            value={form.original_price ?? ''}
-            onChange={e => set('original_price', e.target.value)}
-            placeholder="Original Price"
-          />
-          <input
-            style={input}
-            value={form.offer_price ?? ''}
-            onChange={e => set('offer_price', e.target.value)}
-            placeholder="Offer Price (optional)"
-          />
+          <input style={input} value={form.original_price ?? ''} onChange={e => set('original_price', e.target.value)} placeholder="Original Price" />
+          <input style={input} value={form.offer_price ?? ''} onChange={e => set('offer_price', e.target.value)} placeholder="Offer Price (optional)" />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <input
-            style={input}
-            value={form.stock ?? ''}
-            onChange={e => set('stock', e.target.value)}
-            placeholder="Stock"
-          />
-          {/* PARENT category (e.g., Sarees) */}
-          <select
-            style={input}
-            value={form.category_parent_id ?? ''}
-            onChange={e => set('category_parent_id', e.target.value)}
-          >
+          <input style={input} value={form.stock ?? ''} onChange={e => set('stock', e.target.value)} placeholder="Stock" />
+          <select style={input} value={form.category_parent_id ?? ''} onChange={e => set('category_parent_id', e.target.value)}>
             <option value="">-- Select category --</option>
-            {parents.map(p => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
+            {parents.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
           </select>
         </div>
 
-        {/* SUBCATEGORY (e.g., Banarasi/Kanjivam/Patola) */}
-        <select
-          style={input}
-          value={form.category_id ?? ''}
-          onChange={e => set('category_id', e.target.value)}
-          disabled={!children.length}
-        >
-          <option value="">
-            {children.length ? '-- Select subcategory --' : 'Select category first'}
-          </option>
-          {children.map(c => (
-            <option key={c.id} value={c.id}>
-              {c.label}
-            </option>
-          ))}
+        <select style={input} value={form.category_id ?? ''} onChange={e => set('category_id', e.target.value)} disabled={!children.length}>
+          <option value="">{children.length ? '-- Select subcategory --' : 'Select category first'}</option>
+          {children.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
 
-        <input
-          style={input}
-          value={form.image_url ?? ''}
-          onChange={e => set('image_url', e.target.value)}
-          placeholder="Primary Image URL (optional)"
-        />
+        <input style={input} value={form.image_url ?? ''} onChange={e => set('image_url', e.target.value)} placeholder="Primary Image URL (optional)" />
 
-        {/* Add more images from device */}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <label style={{ ...secondaryBtn, cursor: 'pointer' }}>
             Upload more images…
@@ -270,47 +207,17 @@ export default function EditProductPage() {
           </div>
         )}
 
-        <textarea
-          style={{ ...input, minHeight: 120 }}
-          value={form.description ?? ''}
-          onChange={e => set('description', e.target.value)}
-          placeholder="Description"
-        />
+        <textarea style={{ ...input, minHeight: 120 }} value={form.description ?? ''} onChange={e => set('description', e.target.value)} placeholder="Description" />
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <button disabled={saving} onClick={save} style={primaryBtn}>
-            {saving ? 'Saving…' : 'Save changes'}
-          </button>
-          <button disabled={saving} onClick={() => history.back()} style={secondaryBtn}>
-            Cancel
-          </button>
+          <button disabled={saving} onClick={save} style={primaryBtn}>{saving ? 'Saving…' : 'Save changes'}</button>
+          <button disabled={saving} onClick={() => history.back()} style={secondaryBtn}>Cancel</button>
         </div>
       </div>
     </div>
   );
 }
 
-const input: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  borderRadius: 8,
-  border: '1px solid #334155',
-  background: '#0b1220',
-  color: '#e2e8f0'
-};
-const primaryBtn: React.CSSProperties = {
-  background: '#2563eb',
-  color: '#fff',
-  padding: '10px 12px',
-  borderRadius: 8,
-  border: 'none',
-  cursor: 'pointer'
-};
-const secondaryBtn: React.CSSProperties = {
-  background: '#1f2937',
-  color: '#e5e7eb',
-  border: '1px solid #374151',
-  borderRadius: 8,
-  padding: '10px 12px',
-  cursor: 'pointer'
-};
+const input: React.CSSProperties = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #334155', background: '#0b1220', color: '#e2e8f0' };
+const primaryBtn: React.CSSProperties = { background: '#2563eb', color: '#fff', padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer' };
+const secondaryBtn: React.CSSProperties = { background: '#1f2937', color: '#e5e7eb', border: '1px solid #374151', borderRadius: 8, padding: '10px 12px', cursor: 'pointer' };
