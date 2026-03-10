@@ -33,7 +33,7 @@ async function resolveChildSlug(q?: string) {
     .maybeSingle()
   if (bySlug?.slug && bySlug.parent_id) return bySlug.slug
 
-  // 2) label contains
+  // 2) label contains (so "Kanjivaram" or "kanjivam" both find the child)
   const { data: byLabel } = await supabase
     .from('categories')
     .select('slug, parent_id')
@@ -73,7 +73,8 @@ export default async function ProductsPage({
       product_images ( url, alt, sort_order )
     `
     )
-  query = query.eq('is_active', true).order('created_at', { ascending: false })
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
 
   if (resolvedSlug) {
     query = query.eq('categories.slug', resolvedSlug)
