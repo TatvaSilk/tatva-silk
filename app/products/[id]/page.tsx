@@ -14,7 +14,6 @@ type Product = {
   offer_price: number | null
   stock: number | null
   is_active: boolean | null
-  // relation
   categories?: { slug: string | null; label: string | null } | null
   product_images?: ProductImage[]
 }
@@ -23,7 +22,6 @@ function formatInr(n: number | null | undefined) {
   if (typeof n !== 'number') return '—'
   return `₹${n.toLocaleString('en-IN')}`
 }
-
 function isValidHttpUrl(u?: string | null) {
   return typeof u === 'string' && /^https?:\/\//i.test(u)
 }
@@ -34,23 +32,17 @@ function sortAndFilterImages(images: ProductImage[] = []) {
 }
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const { data } = await supabase
-    .from('products')
-    .select('name')
-    .eq('id', params.id)
-    .single()
-
+  const { data } = await supabase.from('products').select('name').eq('id', params.id).single()
   return { title: data?.name ? `${data.name} • Tatva Silk` : 'Product • Tatva Silk' }
 }
 
 export default async function ProductDetailPage({ params }: { params: { id: string } }) {
   const productId = params.id
 
-  // JOIN categories via category_id (ignore legacy text)
+  // JOIN categories via category_id, ignore legacy text column
   const { data, error } = await supabase
     .from('products')
-    .select(
-      `
+    .select(`
       id,
       name,
       description,
@@ -60,8 +52,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
       is_active,
       categories:category_id ( slug, label ),
       product_images ( url, alt, sort_order )
-    `
-    )
+    `)
     .eq('id', productId)
     .limit(1)
     .single()
@@ -101,9 +92,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
         {catSlug ? (
           <>
             <span style={{ color: '#aaa', margin: '0 8px' }}>/</span>
-            <Link href={`/products?category=${encodeURIComponent(catSlug)}`} className="hover:underline">
-              {(catLabel ?? catSlug).toLowerCase()}
-            </Link>
+            /products?category=${encodeURIComponent(catSlug)}{(catLabel ?? catSlug).toLowerCase()}</Link>
           </>
         ) : null}
       </div>
