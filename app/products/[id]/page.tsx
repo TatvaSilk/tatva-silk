@@ -1,14 +1,25 @@
+// app/products/[id]/page.tsx
 import Link from 'next/link'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import type { Metadata } from 'next'
-import AddToCart from '@/components/AddToCart'
-import ProductGallery, { ProductImage } from '@/components/ProductGallery'
+import AddToCart from '@/components/AddToCart' // keep your existing AddToCart
 
 export const revalidate = 30
+
+type ProductImage = { url: string | null; alt: string | null; sort_order: number | null }
 
 function formatInr(n: number | null | undefined) {
   if (typeof n !== 'number') return '—'
   return `₹${n.toLocaleString('en-IN')}`
+}
+function isValidHttpUrl(u?: string | null) {
+  return typeof u === 'string' && /^https?:\/\//i.test(u)
+}
+function sortAndFilterImages(images: ProductImage[] = []) {
+  return images
+    .filter((img) => isValidHttpUrl(img.url))
+    .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
 }
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
@@ -39,7 +50,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   if (error) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        /products← Back to products</Link>
+        <Link href="/products">← Back to products</Link>
         <h1 style={{ marginTop: 12 }}>Product</h1>
         <p style={{ color: 'crimson' }}>Failed to load product: {error.message}</p>
       </main>
@@ -47,33 +58,35 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   }
 
   const row: any = data ?? {}
-  // normalize relation (object or array)
+  // categories can be object or array depending on introspection; normalize
   const catRel = Array.isArray(row.categories) ? (row.categories[0] ?? null) : (row.categories ?? null)
   const catLabel: string | null = catRel?.label ?? null
   const catSlug: string = (catRel?.slug ?? '')?.toLowerCase() || ''
 
-  const images: ProductImage[] = (row.product_images ?? []) as ProductImage[]
+  const images: ProductImage[] = sortAndFilterImages((row.product_images ?? []) as ProductImage[])
+  const mainImage = images[0] ?? null
+  const thumbnails = images.slice(1)
   const effectivePrice =
     typeof row.offer_price === 'number' ? row.offer_price : (row.original_price as number | null)
 
   if (!row?.id || row.is_active === false) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        /products← Back to products</Link>
+        <Link href="/products">← Back to products</Link>
         <h1 style={{ marginTop: 12 }}>Product not found</h1>
         <p style={{ color: '#666' }}>This product does not exist or is inactive.</p>
       </main>
     )
   }
 
-  // Toggle Buy Now with an env var to avoid 404 if you don't have a checkout route yet
+  // Toggle Buy Now with env var to avoid 404 if you don't have a /checkout route yet
   const enableBuyNow = process.env.NEXT_PUBLIC_ENABLE_BUY_NOW === 'true'
   const buyNowHref = `/checkout?product=${encodeURIComponent(String(row.id))}&qty=1`
 
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
       <div style={{ marginBottom: 8, fontSize: 14 }}>
-        /products← Back to products</Link>
+        <Link href="/products">← Back to products</Link>
         {catSlug ? (
           <>
             <span style={{ color: '#aaa', margin: '0 8px' }}>/</span>
@@ -85,8 +98,79 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
       </div>
 
       <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 8 }}>
-        {/* Left: improved gallery */}
-        <ProductGallery images={images} name={row.name} />
+        {/* Left: gallery */}
+        <div>
+          {mainImage ? (
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: 420,
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  border: '1px solid #eee',
+                }}
+              >
+                <Image
+                  src={mainImage.url!}
+                  alt={mainImage.alt ?? row.name ?? 'Product image'}
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  style={{ objectFit: 'cover' }}
+                  priority
+                />
+              </div>
+
+              {thumbnails.length > 0 ? (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
+                    gap: 8,
+                  }}
+                >
+                  {thumbnails.map((img, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        position: 'relative',
+                        width: '100%',
+                        height: 90,
+                        borderRadius: 6,
+                        overflow: 'hidden',
+                        border: '1px solid #eee',
+                      }}
+                    >
+                      <Image
+                        src={img.url!}
+                        alt={img.alt ?? row.name ?? 'Product image'}
+                        fill
+                        sizes="(max-width: 1024px) 25vw, 15vw"
+                        style={{ objectFit: 'cover' }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div
+              style={{
+                width: '100%',
+                height: 420,
+                borderRadius: 8,
+                border: '1px dashed #ddd',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#888',
+              }}
+            >
+              No images
+            </div>
+          )}
+        </div>
 
         {/* Right: details */}
         <div>
