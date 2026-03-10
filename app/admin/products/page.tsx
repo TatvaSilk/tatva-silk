@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabaseBrowser } from '../../../lib/supabaseClient';
 
@@ -73,9 +73,9 @@ export default function ProductsPage() {
 
   return (
     <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-        <h1 style={{ fontSize:18, fontWeight:600 }}>Products</h1>
-        /admin/products/newNew product</Link>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <h1 style={{ fontSize: 18, fontWeight: 600 }}>Products</h1>
+        <Link href="/admin/products/new" style={primaryBtn}>New product</Link>
       </div>
 
       {rows.length === 0 ? (
@@ -84,7 +84,7 @@ export default function ProductsPage() {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', fontSize: 14, borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ textAlign:'left', background:'#111827' }}>
+              <tr style={{ textAlign: 'left', background: '#111827' }}>
                 <th style={th}>Name</th>
                 <th style={th}>Price</th>
                 <th style={th}>Stock</th>
@@ -101,12 +101,12 @@ export default function ProductsPage() {
                 return (
                   <tr key={p.id} style={{ borderBottom: '1px solid #1f2937' }}>
                     <td style={td}>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         {p.primary_image_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.primary_image_url} alt="" width={40} height={40} style={{ borderRadius:6, objectFit:'cover' }} />
+                          <img src={p.primary_image_url} alt="" width={40} height={40} style={{ borderRadius: 6, objectFit: 'cover' }} />
                         ) : (
-                          <div style={{ width:40, height:40, borderRadius:6, background:'#1f2937' }} />
+                          <div style={{ width: 40, height: 40, borderRadius: 6, background: '#1f2937' }} />
                         )}
                         <span>{p.name}</span>
                       </div>
@@ -114,7 +114,7 @@ export default function ProductsPage() {
                     <td style={td}>
                       {hasOffer ? (
                         <>
-                          <span style={{ textDecoration:'line-through', opacity:0.7, marginRight:8 }}>
+                          <span style={{ textDecoration: 'line-through', opacity: 0.7, marginRight: 8 }}>
                             ₹{original.toFixed(2)}
                           </span>
                           <strong>₹{price.toFixed(2)}</strong>
@@ -126,8 +126,8 @@ export default function ProductsPage() {
                     <td style={td}>{p.stock}</td>
                     <td style={td}>{p.category_label ?? '—'}</td>
                     <td style={td}>{p.created_at ? new Date(p.created_at).toLocaleString() : '—'}</td>
-                    <td style={{ ...td, textAlign:'right' }}>
-                      <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                    <td style={{ ...td, textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                         <Link href={`/admin/products/${p.id}`} style={secondaryBtn}>Edit</Link>
                         <button onClick={() => remove(p.id)} disabled={deletingId === p.id} style={secondaryBtn}>
                           {deletingId === p.id ? 'Deleting…' : 'Delete'}
@@ -148,7 +148,7 @@ export default function ProductsPage() {
 async function safeMsg(res: Response) {
   try { const j = await res.json(); return j?.error ?? res.statusText; } catch { return res.statusText; }
 }
-const th: React.CSSProperties = { padding:'10px 8px', fontWeight:600, fontSize:12, color:'#cbd5e1' };
-const td: React.CSSProperties = { padding:'10px 8px' };
-const primaryBtn: React.CSSProperties = { background:'#2563eb', color:'#fff', padding:'8px 10px', borderRadius:6, textDecoration:'none' };
-const secondaryBtn: React.CSSProperties = { background:'#1f2937', color:'#e5e7eb', border:'1px solid #374151', borderRadius:6, padding:'6px 8px', cursor:'pointer', textDecoration:'none' };
+const th: React.CSSProperties = { padding: '10px 8px', fontWeight: 600, fontSize: 12, color: '#cbd5e1' };
+const td: React.CSSProperties = { padding: '10px 8px' };
+const primaryBtn: React.CSSProperties = { background: '#2563eb', color: '#fff', padding: '8px 10px', borderRadius: 6, textDecoration: 'none' };
+const secondaryBtn: React.CSSProperties = { background: '#1f2937', color: '#e5e7eb', border: '1px solid #374151', borderRadius: 6, padding: '6px 8px', cursor: 'pointer', textDecoration: 'none' };
