@@ -39,7 +39,6 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 export default async function ProductDetailPage({ params }: { params: { id: string } }) {
   const productId = params.id
 
-  // JOIN categories via category_id, ignore legacy text column
   const { data, error } = await supabase
     .from('products')
     .select(`
@@ -60,7 +59,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   if (error) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        /products← Back to products</Link>
+        <Link href="/products">← Back to products</Link>
         <h1 style={{ marginTop: 12 }}>Product</h1>
         <p style={{ color: 'crimson' }}>Failed to load product: {error.message}</p>
       </main>
@@ -71,7 +70,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   if (!p?.id || p.is_active === false) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        /products← Back to products</Link>
+        <Link href="/products">← Back to products</Link>
         <h1 style={{ marginTop: 12 }}>Product not found</h1>
         <p style={{ color: '#666' }}>This product does not exist or is inactive.</p>
       </main>
@@ -88,17 +87,19 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
       <div style={{ marginBottom: 8, fontSize: 14 }}>
-        /products← Back to products</Link>
+        <Link href="/products">← Back to products</Link>
         {catSlug ? (
           <>
             <span style={{ color: '#aaa', margin: '0 8px' }}>/</span>
-            /products?category=${encodeURIComponent(catSlug)}{(catLabel ?? catSlug).toLowerCase()}</Link>
+            <Link href={`/products?category=${encodeURIComponent(catSlug)}`} className="hover:underline">
+              {(catLabel ?? catSlug).toLowerCase()}
+            </Link>
           </>
         ) : null}
       </div>
 
       <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 8 }}>
-        {/* Left: Image gallery */}
+        {/* Left: gallery */}
         <div>
           {mainImage ? (
             <div style={{ display: 'grid', gap: 12 }}>
@@ -172,7 +173,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
           )}
         </div>
 
-        {/* Right: Details */}
+        {/* Right: details */}
         <div>
           <h1 style={{ margin: '0 0 6px' }}>{p.name ?? 'Untitled'}</h1>
           {catLabel ? (
