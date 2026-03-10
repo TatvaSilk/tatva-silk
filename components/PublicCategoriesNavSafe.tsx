@@ -6,7 +6,7 @@ import Link from 'next/link';
 type Cat = { id: string; label: string; slug: string; parent_id: string | null; children?: Cat[] };
 
 type Props = {
-  parentSlug?: string;
+  parentSlug?: string;      // e.g., "sarees"
   limit?: number;
   showAllChildren?: boolean;
   linkClassName?: string;
@@ -65,10 +65,7 @@ export default function PublicCategoriesNavSafe({
         const slug = (c.slug ?? '').toLowerCase();
         return (
           <li key={c.id} className={itemClassName}>
-            <Link
-              href={`/products?category=${encodeURIComponent(slug)}`}
-              className={linkClassName}
-            >
+            <Link href={`/products?category=${encodeURIComponent(slug)}`} className={linkClassName}>
               {c.label}
             </Link>
           </li>
@@ -77,4 +74,3 @@ export default function PublicCategoriesNavSafe({
     </>
   );
 }
-``
