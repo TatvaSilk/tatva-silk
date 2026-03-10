@@ -28,20 +28,23 @@ export default function ProductsPage() {
   }
 
   async function load() {
-    setLoading(true); setErr(null);
+    setLoading(true);
+    setErr(null);
     try {
       const token = await getToken();
       if (!token) throw new Error('unauthenticated');
       const res = await fetch('/api/admin/products', {
         headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store'
+        cache: 'no-store',
       });
       if (!res.ok) throw new Error(await safeMsg(res));
       setRows(await res.json());
     } catch (e: any) {
       setErr(e?.message ?? 'Failed to load products.');
       setRows([]);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { load(); }, []);
@@ -54,13 +57,15 @@ export default function ProductsPage() {
       if (!token) throw new Error('unauthenticated');
       const res = await fetch(`/api/admin/products/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error(await safeMsg(res));
       await load();
     } catch (e: any) {
       alert(e?.message ?? 'Delete failed');
-    } finally { setDeletingId(null); }
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   if (loading) return <div style={{ padding: 20 }}>Loading products…</div>;
@@ -70,14 +75,14 @@ export default function ProductsPage() {
     <div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
         <h1 style={{ fontSize:18, fontWeight:600 }}>Products</h1>
-        /admin/products/newNew product</Link>
+        <Link href="/admin/products/new" style={primaryBtn}>New product</Link>
       </div>
 
       {rows.length === 0 ? (
-        <div style={{ padding:20, opacity:0.7 }}>No products yet.</div>
+        <div style={{ padding: 20, opacity: 0.7 }}>No products yet.</div>
       ) : (
-        <div style={{ overflowX:'auto' }}>
-          <table style={{ width:'100%', fontSize:14, borderCollapse:'collapse' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', fontSize: 14, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ textAlign:'left', background:'#111827' }}>
                 <th style={th}>Name</th>
@@ -94,7 +99,7 @@ export default function ProductsPage() {
                 const original = Number(p.original_price ?? 0);
                 const hasOffer = p.offer_price != null;
                 return (
-                  <tr key={p.id} style={{ borderBottom:'1px solid #1f2937' }}>
+                  <tr key={p.id} style={{ borderBottom: '1px solid #1f2937' }}>
                     <td style={td}>
                       <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                         {p.primary_image_url ? (
@@ -124,8 +129,8 @@ export default function ProductsPage() {
                     <td style={{ ...td, textAlign:'right' }}>
                       <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
                         <Link href={`/admin/products/${p.id}`} style={secondaryBtn}>Edit</Link>
-                        <button onClick={()=>remove(p.id)} disabled={deletingId===p.id} style={secondaryBtn}>
-                          {deletingId===p.id ? 'Deleting…' : 'Delete'}
+                        <button onClick={() => remove(p.id)} disabled={deletingId === p.id} style={secondaryBtn}>
+                          {deletingId === p.id ? 'Deleting…' : 'Delete'}
                         </button>
                       </div>
                     </td>
@@ -145,6 +150,5 @@ async function safeMsg(res: Response) {
 }
 const th: React.CSSProperties = { padding:'10px 8px', fontWeight:600, fontSize:12, color:'#cbd5e1' };
 const td: React.CSSProperties = { padding:'10px 8px' };
-const secondaryBtn: React.CSSProperties = {
-  background:'#1f2937', color:'#e5e7eb', border:'1px solid #374151', borderRadius:6, padding:'6px 8px', cursor:'pointer', textDecoration:'none'
-};
+const primaryBtn: React.CSSProperties = { background:'#2563eb', color:'#fff', padding:'8px 10px', borderRadius:6, textDecoration:'none' };
+const secondaryBtn: React.CSSProperties = { background:'#1f2937', color:'#e5e7eb', border:'1px solid #374151', borderRadius:6, padding:'6px 8px', cursor:'pointer', textDecoration:'none' };
