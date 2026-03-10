@@ -1,3 +1,4 @@
+// app/products/page.tsx
 import Link from 'next/link';
 
 export const revalidate = 0;
@@ -20,13 +21,14 @@ function formatInr(n: number | null | undefined) {
 async function fetchProducts(category?: string) {
   const qs = new URLSearchParams();
   if (category) qs.set('category', category);
-  const url = `${process.env.NEXT_PUBLIC_BASE_URL ?? ''}/api/store/products${qs.size ? `?${qs}` : ''}`;
+  const base = process.env.NEXT_PUBLIC_BASE_URL ?? '';
+  const url = `${base}/api/store/products${qs.size ? `?${qs}` : ''}`;
   const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) return { items: [], total: 0 };
-  return res.json() as Promise<{ items: Card[]; total: number }>;
+  if (!res.ok) return { items: [] as Card[], total: 0 };
+  return (await res.json()) as { items: Card[]; total: number };
 }
 
-export default async function ProductsPage({ searchParams }: { searchParams?: Record<string,string|undefined> }) {
+export default async function ProductsPage({ searchParams }: { searchParams?: Record<string, string | undefined> }) {
   const category = searchParams?.category;
   const { items } = await fetchProducts(category);
 
@@ -39,23 +41,46 @@ export default async function ProductsPage({ searchParams }: { searchParams?: Re
             <span>Filtered by: </span>
             <strong style={{ textTransform: 'capitalize' }}>{category}</strong>
             <span style={{ margin: '0 8px' }}>|</span>
-            /productsClear filter</Link>
+            <Link href="/products">Clear filter</Link>
           </div>
         ) : null}
       </div>
 
       {items.length === 0 ? (
-        <p style={{ color: '#666' }}>{category ? `No products found in "${category}".` : 'No products found.'}</p>
+        <p style={{ color: '#666' }}>
+          {category ? `No products found in "${category}".` : 'No products found.'}
+        </p>
       ) : (
-        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+        <section
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: 16,
+          }}
+        >
           {items.map((p) => {
-            const effectivePrice = typeof p.offer_price === 'number' ? p.offer_price : p.original_price;
+            const effectivePrice =
+              typeof p.offer_price === 'number' ? p.offer_price : p.original_price;
+
             return (
               <article key={p.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
                 {p.primary_image_url ? (
-                  <div style={{ width: '100%', height: 180, borderRadius: 8, overflow: 'hidden', marginBottom: 8, border:'1px solid #eee' }}>
+                  <div
+                    style={{
+                      width: '100%',
+                      height: 180,
+                      borderRadius: 8,
+                      overflow: 'hidden',
+                      marginBottom: 8,
+                      border: '1px solid #eee',
+                    }}
+                  >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={p.primary_image_url} alt={p.name ?? 'Product image'} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                    <img
+                      src={p.primary_image_url}
+                      alt={p.name ?? 'Product image'}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
                   </div>
                 ) : null}
 
@@ -63,16 +88,21 @@ export default async function ProductsPage({ searchParams }: { searchParams?: Re
 
                 {p.category_label ? (
                   <div style={{ color: '#777', fontSize: 12, marginBottom: 6 }}>
-                    /products?category=${encodeURIComponent(p.category_label.toLowerCase())}{p.category_label.toLowerCase()}</Link>
+                    <Link
+                      href={`/products?category=${encodeURIComponent(p.category_label.toLowerCase())}`}
+                      className="hover:underline"
+                    >
+                      {p.category_label.toLowerCase()}
+                    </Link>
                   </div>
                 ) : null}
 
-                <div style={{ fontWeight: 600 }}>
-                  {formatInr(effectivePrice)}
-                </div>
+                <div style={{ fontWeight: 600 }}>{formatInr(effectivePrice)}</div>
 
                 <div style={{ marginTop: 10 }}>
-                  /products/${p.id}View details →</Link>
+                  <Link href={`/products/${p.id}`} style={{ color: '#2563eb' }}>
+                    View details →
+                  </Link>
                 </div>
               </article>
             );
