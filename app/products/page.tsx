@@ -25,7 +25,7 @@ async function resolveChildSlug(q?: string) {
   if (!q) return null
   const needle = q.trim().toLowerCase()
 
-  // 1) try exact slug first
+  // 1) exact slug
   const { data: bySlug } = await supabase
     .from('categories')
     .select('slug, parent_id')
@@ -33,7 +33,7 @@ async function resolveChildSlug(q?: string) {
     .maybeSingle()
   if (bySlug?.slug && bySlug.parent_id) return bySlug.slug
 
-  // 2) fallback: try label match (case-insensitive)
+  // 2) label fallback
   const { data: byLabel } = await supabase
     .from('categories')
     .select('slug, parent_id')
@@ -55,8 +55,6 @@ export default async function ProductsPage({
 
   const resolvedSlug = await resolveChildSlug(categoryParam)
 
-  // Relation selector:
-  // - when filtering by category, we need !inner to allow filtering on the joined relation
   const categoriesRel = resolvedSlug
     ? 'categories:category_id!inner ( slug, label )'
     : 'categories:category_id ( slug, label )'
@@ -103,7 +101,7 @@ export default async function ProductsPage({
             <span>Filtered by: </span>
             <strong style={{ textTransform: 'capitalize' }}>{categoryParam}</strong>
             <span style={{ margin: '0 8px' }}>|</span>
-            /productsClear filter</Link>
+            <Link href="/products">Clear filter</Link>
           </div>
         ) : null}
       </div>
