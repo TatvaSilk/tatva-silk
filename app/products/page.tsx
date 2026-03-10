@@ -20,26 +20,53 @@ function pickFirstImage(images: ProductImage[] = []) {
   return imgs[0] ?? null
 }
 
-/** Convert ?category= (slug or label) to the true CHILD slug */
-async function resolveChildSlug(q?: string) {
+/** Resolve ?category= to a filter:
+ * - child slug  => { childSlug }
+ * - parent slug => { childIds: [...] }
+ * - label (any case) resolves to child or parent
+ */
+async function resolveCategoryFilter(q?: string): Promise<
+  | { childSlug: string }
+  | { childIds: string[] }
+  | null
+> {
   if (!q) return null
   const needle = q.trim().toLowerCase()
 
-  // 1) exact slug
+  // 1) try exact slug
   const { data: bySlug } = await supabase
     .from('categories')
-    .select('slug, parent_id')
+    .select('id, slug, parent_id')
     .eq('slug', needle)
     .maybeSingle()
-  if (bySlug?.slug && bySlug.parent_id) return bySlug.slug
 
-  // 2) label contains (so "Kanjivaram" or "kanjivam" both find the child)
+  if (bySlug?.slug) {
+    if (bySlug.parent_id) return { childSlug: bySlug.slug }  // child
+    // parent: gather children ids
+    const { data: kids } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('parent_id', bySlug.id)
+    const childIds = (kids ?? []).map(k => k.id)
+    return childIds.length ? { childIds } : null
+  }
+
+  // 2) fallback: label contains (handles "Kanjivaram" vs "Kanjivam")
   const { data: byLabel } = await supabase
     .from('categories')
-    .select('slug, parent_id')
+    .select('id, slug, parent_id')
     .ilike('label', `%${needle}%`)
     .maybeSingle()
-  if (byLabel?.slug && byLabel.parent_id) return byLabel.slug
+
+  if (byLabel?.slug) {
+    if (byLabel.parent_id) return { childSlug: byLabel.slug }
+    const { data: kids } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('parent_id', byLabel.id)
+    const childIds = (kids ?? []).map(k => k.id)
+    return childIds.length ? { childIds } : null
+  }
 
   return null
 }
@@ -49,16 +76,13 @@ export default async function ProductsPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined }
 }) {
-  const categoryParam = (Array.isArray(searchParams?.category)
+  const q = (Array.isArray(searchParams?.category)
     ? searchParams?.category[0]
     : searchParams?.category) as string | undefined
 
-  const resolvedSlug = await resolveChildSlug(categoryParam)
+  const filter = await resolveCategoryFilter(q)
 
-  const categoriesRel = resolvedSlug
-    ? 'categories:category_id!inner ( slug, label )'
-    : 'categories:category_id ( slug, label )'
-
+  // Base select with relation for labels
   let query = supabase
     .from('products')
     .select(
@@ -69,16 +93,35 @@ export default async function ProductsPage({
       offer_price,
       stock,
       is_active,
-      ${categoriesRel},
+      categories:category_id ( slug, label ),
       product_images ( url, alt, sort_order )
     `
     )
     .eq('is_active', true)
-    .order('created_at', { ascending: false })
 
-  if (resolvedSlug) {
-    query = query.eq('categories.slug', resolvedSlug)
+  // Apply filter
+  if (filter && 'childSlug' in filter) {
+    // Use inner join to filter by relation when matching child slug
+    query = query
+      .select(
+        `
+        id,
+        name,
+        original_price,
+        offer_price,
+        stock,
+        is_active,
+        categories:category_id!inner ( slug, label ),
+        product_images ( url, alt, sort_order )
+      `
+      )
+      .eq('categories.slug', filter.childSlug)
+  } else if (filter && 'childIds' in filter && filter.childIds.length) {
+    // Parent: filter directly by product.category_id IN childIds
+    query = query.in('category_id', filter.childIds)
   }
+
+  query = query.order('created_at', { ascending: false })
 
   const { data, error } = await query
   if (error) {
@@ -96,10 +139,10 @@ export default async function ProductsPage({
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <h1 style={{ margin: 0 }}>Products</h1>
-        {categoryParam ? (
+        {q ? (
           <div style={{ fontSize: 14, color: '#555' }}>
             <span>Filtered by: </span>
-            <strong style={{ textTransform: 'capitalize' }}>{categoryParam}</strong>
+            <strong style={{ textTransform: 'capitalize' }}>{q}</strong>
             <span style={{ margin: '0 8px' }}>|</span>
             <Link href="/products">Clear filter</Link>
           </div>
@@ -108,7 +151,7 @@ export default async function ProductsPage({
 
       {rows.length === 0 ? (
         <p style={{ color: '#666' }}>
-          {categoryParam ? `No products found in "${categoryParam}".` : 'No products found.'}
+          {q ? `No products found in "${q}".` : 'No products found.'}
         </p>
       ) : (
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
@@ -123,16 +166,7 @@ export default async function ProductsPage({
             return (
               <article key={r.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
                 {firstImage ? (
-                  <div
-                    style={{
-                      position: 'relative',
-                      width: '100%',
-                      height: 180,
-                      borderRadius: 8,
-                      overflow: 'hidden',
-                      marginBottom: 8,
-                    }}
-                  >
+                  <div style={{ position: 'relative', width: '100%', height: 180, borderRadius: 8, overflow: 'hidden', marginBottom: 8 }}>
                     <Image
                       src={firstImage.url!}
                       alt={firstImage.alt ?? r.name ?? 'Product image'}
