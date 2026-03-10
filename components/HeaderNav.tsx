@@ -1,11 +1,12 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-import { useCartCount } from "@/hooks/useCartCount";
-import CartDrawer from "@/components/CartDrawer";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { useCartCount } from '@/hooks/useCartCount';
+import CartDrawer from '@/components/CartDrawer';
+import PublicCategoriesNavSafe from '@/components/PublicCategoriesNavSafe';
 
 export default function HeaderNav() {
   const router = useRouter();
@@ -14,53 +15,56 @@ export default function HeaderNav() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const liveCount = useCartCount();
 
   useEffect(() => {
+    let mounted = true;
     supabase.auth.getUser().then(({ data }) => {
-      setUserEmail(data.user?.email ?? null);
+      if (mounted) setUserEmail(data.user?.email ?? null);
     });
+    return () => { mounted = false; };
   }, [supabase]);
 
   function onSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (q.trim()) router.push(`/products?search=${encodeURIComponent(q)}`);
+    const term = q.trim();
+    if (term) router.push(`/products?search=${encodeURIComponent(term)}`);
   }
 
   async function signOut() {
     await supabase.auth.signOut();
-    window.location.href = "/";
+    window.location.href = '/';
   }
 
   return (
     <>
       {/* MAIN HEADER */}
-      <header style={{ background: "#131921", color: "#fff" }}>
+      <header style={{ background: '#131921', color: '#fff' }}>
         <div
           style={{
             maxWidth: 1280,
-            margin: "0 auto",
+            margin: '0 auto',
             height: 64,
-            display: "flex",
-            alignItems: "center",
+            display: 'flex',
+            alignItems: 'center',
             gap: 14,
-            padding: "0 16px",
-            whiteSpace: "nowrap",
+            padding: '0 16px',
+            whiteSpace: 'nowrap',
           }}
         >
           {/* LOGO */}
-          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div
               style={{
                 width: 36,
                 height: 36,
                 borderRadius: 8,
-                background: "#0f172a",
-                display: "grid",
-                placeItems: "center",
+                background: '#0f172a',
+                display: 'grid',
+                placeItems: 'center',
                 fontWeight: 800,
               }}
             >
@@ -70,30 +74,27 @@ export default function HeaderNav() {
           </Link>
 
           {/* SEARCH */}
-          <form
-            onSubmit={onSearch}
-            style={{ display: "flex", flex: 1, maxWidth: 520 }}
-          >
+          <form onSubmit={onSearch} style={{ display: 'flex', flex: 1, maxWidth: 520 }}>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search Tatva Silk"
               style={{
                 flex: 1,
-                padding: "8px 10px",
-                borderRadius: "6px 0 0 6px",
-                border: "none",
+                padding: '8px 10px',
+                borderRadius: '6px 0 0 6px',
+                border: 'none',
               }}
             />
             <button
               type="submit"
               style={{
-                padding: "0 16px",
-                background: "#febd69",
-                border: "none",
-                borderRadius: "0 6px 6px 0",
+                padding: '0 16px',
+                background: '#febd69',
+                border: 'none',
+                borderRadius: '0 6px 6px 0',
                 fontWeight: 600,
-                cursor: "pointer",
+                cursor: 'pointer',
               }}
             >
               Search
@@ -104,37 +105,37 @@ export default function HeaderNav() {
           <div
             onMouseEnter={() => setMenuOpen(true)}
             onMouseLeave={() => setMenuOpen(false)}
-            style={{ position: "relative", cursor: "pointer" }}
+            style={{ position: 'relative', cursor: 'pointer' }}
           >
             <div style={{ fontSize: 12, opacity: 0.9 }}>
-              Hello, {userEmail ? userEmail.split("@")[0] : "sign in"}
+              Hello, {userEmail ? userEmail.split('@')[0] : 'sign in'}
             </div>
-            <div style={{ fontWeight: 700 }}>Account & Lists ▾</div>
+            <div style={{ fontWeight: 700 }}>Account &amp; Lists ▾</div>
 
             {menuOpen && (
               <div
                 style={{
-                  position: "absolute",
+                  position: 'absolute',
                   right: 0,
-                  top: "100%",
-                  background: "#fff",
-                  color: "#111",
+                  top: '100%',
+                  background: '#fff',
+                  color: '#111',
                   borderRadius: 8,
                   minWidth: 220,
                   padding: 12,
                   zIndex: 9999,
-                  boxShadow: "0 10px 30px rgba(0,0,0,.25)",
+                  boxShadow: '0 10px 30px rgba(0,0,0,.25)',
                 }}
               >
                 {userEmail ? (
                   <button
                     onClick={signOut}
                     style={{
-                      width: "100%",
+                      width: '100%',
                       padding: 8,
-                      border: "1px solid #ddd",
+                      border: '1px solid #ddd',
                       borderRadius: 6,
-                      cursor: "pointer",
+                      cursor: 'pointer',
                     }}
                   >
                     Sign out
@@ -153,29 +154,27 @@ export default function HeaderNav() {
 
           {/* CART */}
           <button
-            onClick={() =>
-              window.dispatchEvent(new CustomEvent("cart:open"))
-            }
+            onClick={() => window.dispatchEvent(new CustomEvent('cart:open'))}
             style={{
-              position: "relative",
-              background: "none",
-              border: "none",
-              color: "#fff",
-              cursor: "pointer",
+              position: 'relative',
+              background: 'none',
+              border: 'none',
+              color: '#fff',
+              cursor: 'pointer',
               fontWeight: 700,
             }}
           >
             🛒 Cart
             <span
               style={{
-                position: "absolute",
+                position: 'absolute',
                 top: -6,
                 right: -10,
-                background: "#f08804",
-                color: "#111",
+                background: '#f08804',
+                color: '#111',
                 borderRadius: 999,
                 fontSize: 12,
-                padding: "0 6px",
+                padding: '0 6px',
               }}
             >
               {liveCount}
@@ -183,46 +182,29 @@ export default function HeaderNav() {
           </button>
         </div>
 
-        {/* CATEGORY BAR */}
-        <nav style={{ background: "#232f3e" }}>
+        {/* CATEGORY BAR (dynamic) */}
+        <nav style={{ background: '#232f3e' }}>
           <div
             style={{
               maxWidth: 1280,
-              margin: "0 auto",
+              margin: '0 auto',
               height: 40,
-              display: "flex",
-              alignItems: "center",
+              display: 'flex',
+              alignItems: 'center',
               gap: 18,
-              padding: "0 16px",
+              padding: '0 16px',
             }}
           >
-            {[
-              "Banarasi",
-              "Kanjivaram",
-              "Patola",
-              "Soft Silk",
-              "Wedding",
-              "Gifts",
-              "Today’s Deals",
-            ].map((c) => (
-              <Link
-                key={c}
-                href={`/products?category=${c.toLowerCase().replace(" ", "-")}`}
-                style={{
-                  color: "#fff",
-                  fontSize: 14,
-                  textDecoration: "none",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.color = "#febd69")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.color = "#fff")
-                }
-              >
-                {c}
-              </Link>
-            ))}
+            <ul style={{ display: 'flex', gap: 18, listStyle: 'none', margin: 0, padding: 0 }}>
+              {/* Renders children (sub‑categories) for the chosen parent.
+                 Change parentSlug if your parent is not "sarees".
+                 Leave it empty to use the first parent from DB. */}
+              <PublicCategoriesNavSafe
+                parentSlug="sarees"
+                limit={12}
+                linkClassName="hover:underline"
+              />
+            </ul>
           </div>
         </nav>
       </header>
