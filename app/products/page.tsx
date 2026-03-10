@@ -25,12 +25,10 @@ export default async function ProductsPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined }
 }) {
-  // We filter by subcategory slug (child), not any legacy text column
   const categorySlug = (Array.isArray(searchParams?.category)
     ? searchParams?.category[0]
     : searchParams?.category) as string | undefined
 
-  // Use inner join only when filtering by slug; otherwise left join is fine
   const categoriesRel = categorySlug
     ? 'categories:category_id!inner ( slug, label )'
     : 'categories:category_id ( slug, label )'
@@ -50,11 +48,10 @@ export default async function ProductsPage({
     `
     )
     .eq('is_active', true)
-    .order('name', { ascending: true })
-
   if (categorySlug && categorySlug.trim().length > 0) {
     query = query.eq('categories.slug', categorySlug.toLowerCase())
   }
+  query = query.order('name', { ascending: true })
 
   const { data, error } = await query
   if (error) {
@@ -77,7 +74,7 @@ export default async function ProductsPage({
             <span>Filtered by: </span>
             <strong style={{ textTransform: 'capitalize' }}>{categorySlug}</strong>
             <span style={{ margin: '0 8px' }}>|</span>
-            /productsClear filter</Link>
+            <Link href="/products">Clear filter</Link>
           </div>
         ) : null}
       </div>
@@ -95,7 +92,6 @@ export default async function ProductsPage({
           }}
         >
           {rows.map((r) => {
-            // Normalize relation (object or array)
             const rel = Array.isArray(r.categories) ? (r.categories[0] ?? null) : (r.categories ?? null)
             const label: string | null = rel?.label ?? null
             const slug: string = (rel?.slug ?? '')?.toLowerCase() || ''
@@ -130,10 +126,7 @@ export default async function ProductsPage({
 
                 {label ? (
                   <div style={{ color: '#777', fontSize: 12, marginBottom: 6 }}>
-                    <Link
-                      href={`/products?category=${encodeURIComponent(slug)}`}
-                      className="hover:underline"
-                    >
+                    <Link href={`/products?category=${encodeURIComponent(slug)}`} className="hover:underline">
                       {label.toLowerCase()}
                     </Link>
                   </div>
@@ -154,3 +147,4 @@ export default async function ProductsPage({
     </main>
   )
 }
+``
