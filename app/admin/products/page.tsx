@@ -73,8 +73,8 @@ export default function ProductsPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 600 }}>Products</h1>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+        <h1 style={{ fontSize:18, fontWeight:600 }}>Products</h1>
         <Link href="/admin/products/new" style={primaryBtn}>New product</Link>
       </div>
 
