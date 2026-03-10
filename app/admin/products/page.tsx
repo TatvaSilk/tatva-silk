@@ -75,7 +75,7 @@ export default function ProductsPage() {
     <div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
         <h1 style={{ fontSize:18, fontWeight:600 }}>Products</h1>
-        <Link href="/admin/products/new" style={primaryBtn}>New product</Link>
+        /admin/products/newNew product</Link>
       </div>
 
       {rows.length === 0 ? (
