@@ -17,26 +17,33 @@ function clientFromToken(token?: string) {
 async function authAndRole(req: NextRequest) {
   const auth = req.headers.get('authorization') ?? '';
   const token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7) : undefined;
+
   const supabase = clientFromToken(token);
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false as const, code: 401, supabase };
-  const { data: me } = await supabase.from('profiles').select('role, approved').eq('id', user.id).single();
+  if (!user) return { ok: false as const, code: 401 };
+
+  const { data: me } = await supabase
+    .from('profiles')
+    .select('role, approved')
+    .eq('id', user.id)
+    .single();
   if (!me || me.approved !== true || !['admin','manager'].includes(me.role as any)) {
-    return { ok: false as const, code: 403, supabase };
+    return { ok: false as const, code: 403 };
   }
   return { ok: true as const };
 }
 
-// GET one
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await authAndRole(req);
   if (!auth.ok) return NextResponse.json({ error: 'unauthorized' }, { status: auth.code });
 
   const admin = supabaseAdmin();
+
   const { data: p, error: pErr } = await admin
     .from('products')
     .select('id, name, description, original_price, offer_price, stock, category_id, created_at')
-    .eq('id', params.id).single();
+    .eq('id', params.id)
+    .single();
   if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
   if (!p) return NextResponse.json({ error: 'not-found' }, { status: 404 });
 
@@ -45,13 +52,13 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     .select('url, alt, sort_order')
     .eq('product_id', params.id)
     .order('sort_order', { ascending: true })
-    .limit(1).maybeSingle();
+    .limit(1)
+    .maybeSingle();
   if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
 
-  return NextResponse.json({ ...p, primary_image_url: img?.url ?? null, primary_image_alt: img?.alt ?? null });
+  return NextResponse.json({ ...p, primary_image_url: img?.url ?? null });
 }
 
-// PATCH one
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await authAndRole(req);
   if (!auth.ok) return NextResponse.json({ error: 'unauthorized' }, { status: auth.code });
@@ -63,7 +70,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.original_price !== undefined) patch.original_price = Number(body.original_price);
   if (body.offer_price !== undefined) patch.offer_price = body.offer_price == null ? null : Number(body.offer_price);
   if (body.stock !== undefined) patch.stock = Number(body.stock);
-  if (body.category_id !== undefined) patch.category_id = body.category_id;
+  if (body.category_id !== undefined) patch.category_id = body.category_id;     // <<-- important
 
   const imageUrl: string | null | undefined = body.image_url;
 
@@ -73,14 +80,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
   }
 
-  // Upsert primary image at sort_order=1
   if (imageUrl !== undefined) {
     const { data: existing } = await admin
       .from('product_images')
       .select('id, sort_order')
       .eq('product_id', params.id)
       .order('sort_order', { ascending: true })
-      .limit(1).maybeSingle();
+      .limit(1)
+      .maybeSingle();
 
     if (imageUrl === null || imageUrl === '') {
       if (existing) {
@@ -103,7 +110,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
   }
 
-  // Return fresh snapshot
   const { data: p2 } = await admin
     .from('products')
     .select('id, name, description, original_price, offer_price, stock, category_id, created_at')
@@ -116,16 +122,4 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     .limit(1).maybeSingle();
 
   return NextResponse.json({ ...(p2 ?? {}), primary_image_url: img?.url ?? null });
-}
-
-// DELETE one
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await authAndRole(req);
-  if (!auth.ok) return NextResponse.json({ error: 'unauthorized' }, { status: auth.code });
-
-  const admin = supabaseAdmin();
-  await admin.from('product_images').delete().eq('product_id', params.id);
-  const { error } = await admin.from('products').delete().eq('id', params.id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
 }
