@@ -41,174 +41,132 @@ export default function HeaderNav() {
 
   return (
     <>
-      {/* MAIN HEADER */}
-      <header style={{ background: '#131921', color: '#fff' }}>
-        <div
-          style={{
-            maxWidth: 1280,
-            margin: '0 auto',
-            height: 64,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 14,
-            padding: '0 16px',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {/* LOGO */}
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* ====== MAIN HEADER ====== */}
+      <header className="header">
+        <div className="container">
+          <div className="header-row">
+            {/* LOGO */}
+            /
+              <span className="logo-badge">TS</span>
+              <span className="logo-text">Tatva Silk</span>
+            </Link>
+
+            {/* (OPTIONAL) Address / Language blocks */}
+            <div className="addr hide-md">
+              Deliver to
+              <strong>Your location</strong>
+            </div>
+
+            {/* SEARCH */}
+            <form className="search" onSubmit={onSearch}>
+              {/* If you have a category select, place it here */}
+              {/* <select><option>All</option></select> */}
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search Tatva Silk"
+                aria-label="Search products"
+              />
+              <button type="submit">Search</button>
+            </form>
+
+            {/* ACCOUNT DROPDOWN */}
             <div
+              className="account"
+              onMouseEnter={() => setMenuOpen(true)}
+              onMouseLeave={() => setMenuOpen(false)}
+              style={{ position: 'relative', cursor: 'pointer' }}
+            >
+              <div>Hello, {userEmail ? userEmail.split('@')[0] : 'sign in'}</div>
+              <strong>Account &amp; Lists ▾</strong>
+
+              {menuOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: '100%',
+                    background: '#fff',
+                    color: '#111',
+                    borderRadius: 8,
+                    minWidth: 220,
+                    padding: 12,
+                    zIndex: 9999,
+                    boxShadow: 'var(--shadow-3)',
+                  }}
+                >
+                  {userEmail ? (
+                    <button
+                      onClick={signOut}
+                      style={{
+                        width: '100%',
+                        padding: 8,
+                        border: '1px solid var(--border)',
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        background: '#fff',
+                      }}
+                    >
+                      Sign out
+                    </button>
+                  ) : (
+                    /accountSign in</Link>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ORDERS */}
+            /ordersOrders</Link>
+
+            {/* CART */}
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('cart:open'))}
+              className="cart"
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                background: '#0f172a',
-                display: 'grid',
-                placeItems: 'center',
+                position: 'relative',
+                background: 'none',
+                border: 'none',
+                color: '#fff',
+                cursor: 'pointer',
                 fontWeight: 800,
               }}
+              aria-label="Open cart"
             >
-              TS
-            </div>
-            <strong>Tatva Silk</strong>
-          </Link>
-
-          {/* SEARCH */}
-          <form onSubmit={onSearch} style={{ display: 'flex', flex: 1, maxWidth: 520 }}>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search Tatva Silk"
-              style={{
-                flex: 1,
-                padding: '8px 10px',
-                borderRadius: '6px 0 0 6px',
-                border: 'none',
-              }}
-            />
-            <button
-              type="submit"
-              style={{
-                padding: '0 16px',
-                background: '#febd69',
-                border: 'none',
-                borderRadius: '0 6px 6px 0',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Search
-            </button>
-          </form>
-
-          {/* ACCOUNT */}
-          <div
-            onMouseEnter={() => setMenuOpen(true)}
-            onMouseLeave={() => setMenuOpen(false)}
-            style={{ position: 'relative', cursor: 'pointer' }}
-          >
-            <div style={{ fontSize: 12, opacity: 0.9 }}>
-              Hello, {userEmail ? userEmail.split('@')[0] : 'sign in'}
-            </div>
-            <div style={{ fontWeight: 700 }}>Account &amp; Lists ▾</div>
-
-            {menuOpen && (
-              <div
+              🛒 Cart
+              <span
                 style={{
                   position: 'absolute',
-                  right: 0,
-                  top: '100%',
-                  background: '#fff',
+                  top: -6,
+                  right: -10,
+                  background: '#f08804',
                   color: '#111',
-                  borderRadius: 8,
-                  minWidth: 220,
-                  padding: 12,
-                  zIndex: 9999,
-                  boxShadow: '0 10px 30px rgba(0,0,0,.25)',
+                  borderRadius: 999,
+                  fontSize: 12,
+                  padding: '0 6px',
                 }}
               >
-                {userEmail ? (
-                  <button
-                    onClick={signOut}
-                    style={{
-                      width: '100%',
-                      padding: 8,
-                      border: '1px solid #ddd',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Sign out
-                  </button>
-                ) : (
-                  <Link href="/account">Sign in</Link>
-                )}
-              </div>
-            )}
+                {liveCount}
+              </span>
+            </button>
           </div>
-
-          {/* ORDERS */}
-          <Link href="/orders" style={{ fontWeight: 700 }}>
-            Orders
-          </Link>
-
-          {/* CART */}
-          <button
-            onClick={() => window.dispatchEvent(new CustomEvent('cart:open'))}
-            style={{
-              position: 'relative',
-              background: 'none',
-              border: 'none',
-              color: '#fff',
-              cursor: 'pointer',
-              fontWeight: 700,
-            }}
-          >
-            🛒 Cart
-            <span
-              style={{
-                position: 'absolute',
-                top: -6,
-                right: -10,
-                background: '#f08804',
-                color: '#111',
-                borderRadius: 999,
-                fontSize: 12,
-                padding: '0 6px',
-              }}
-            >
-              {liveCount}
-            </span>
-          </button>
         </div>
 
-        {/* CATEGORY BAR (dynamic) */}
-        <nav style={{ background: '#232f3e' }}>
-          <div
-            style={{
-              maxWidth: 1280,
-              margin: '0 auto',
-              height: 40,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 18,
-              padding: '0 16px',
-            }}
-          >
-            <ul style={{ display: 'flex', gap: 18, listStyle: 'none', margin: 0, padding: 0 }}>
-              {/* Renders children (sub‑categories) for the chosen parent.
-                 Change parentSlug if your parent is not "sarees".
-                 Leave it empty to use the first parent from DB. */}
-              <PublicCategoriesNavSafe
-                parentSlug="sarees"
-                limit={12}
-                linkClassName="hover:underline"
-              />
+        {/* ====== CATEGORY STRIP (dynamic) ====== */}
+        <div className="cat-strip">
+          <div className="container">
+            {/* We use <ul class="cat-list"> so your CSS applies: .cat-list and .cat-list a */}
+            <ul className="cat-list">
+              {/* Renders sub‑categories (children) of the chosen parent.
+                 If your main parent is not "sarees", change parentSlug accordingly.
+                 Remove parentSlug to show the first parent’s children from DB. */}
+              <PublicCategoriesNavSafe parentSlug="sarees" limit={12} />
             </ul>
           </div>
-        </nav>
+        </div>
       </header>
 
+      {/* CART DRAWER PORTAL */}
       <CartDrawer />
     </>
   );
