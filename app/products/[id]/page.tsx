@@ -1,111 +1,222 @@
-// app/products/[id]/page.tsx
-import Link from 'next/link';
+import Link from 'next/link'
+import Image from 'next/image'
+import { supabase } from '@/lib/supabase'
+import type { Metadata } from 'next'
 
-export const revalidate = 0;
+export const revalidate = 30
 
-type ProductImage = { url: string | null; alt: string | null; sort_order: number | null };
-type Detail = {
-  id: string;
-  name: string | null;
-  description: string | null;
-  original_price: number | null;
-  offer_price: number | null;
-  stock: number | null;
-  category: { id: string; slug: string; label: string } | null;
-  images: ProductImage[];
-  primary_image_url: string | null;
-};
-
-function formatInr(n: number | null | undefined) {
-  if (typeof n !== 'number') return '—';
-  return `₹${n.toLocaleString('en-IN')}`;
+type ProductImage = { url: string | null; alt: string | null; sort_order: number | null }
+type Product = {
+  id: string
+  name: string | null
+  description: string | null
+  original_price: number | null
+  offer_price: number | null
+  stock: number | null
+  is_active: boolean | null
+  // relation
+  categories?: { slug: string | null; label: string | null } | null
+  product_images?: ProductImage[]
 }
 
-async function getProduct(id: string): Promise<Detail | null> {
-  const base = process.env.NEXT_PUBLIC_BASE_URL ?? '';
-  const res = await fetch(`${base}/api/store/products/${id}`, { cache: 'no-store' });
-  if (!res.ok) return null;
-  return await res.json();
+function formatInr(n: number | null | undefined) {
+  if (typeof n !== 'number') return '—'
+  return `₹${n.toLocaleString('en-IN')}`
+}
+
+function isValidHttpUrl(u?: string | null) {
+  return typeof u === 'string' && /^https?:\/\//i.test(u)
+}
+function sortAndFilterImages(images: ProductImage[] = []) {
+  return images
+    .filter((img) => isValidHttpUrl(img.url))
+    .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
+}
+
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const { data } = await supabase
+    .from('products')
+    .select('name')
+    .eq('id', params.id)
+    .single()
+
+  return { title: data?.name ? `${data.name} • Tatva Silk` : 'Product • Tatva Silk' }
 }
 
 export default async function ProductDetailPage({ params }: { params: { id: string } }) {
-  const p = await getProduct(params.id);
+  const productId = params.id
 
-  if (!p) {
+  // JOIN categories via category_id (ignore legacy text)
+  const { data, error } = await supabase
+    .from('products')
+    .select(
+      `
+      id,
+      name,
+      description,
+      original_price,
+      offer_price,
+      stock,
+      is_active,
+      categories:category_id ( slug, label ),
+      product_images ( url, alt, sort_order )
+    `
+    )
+    .eq('id', productId)
+    .limit(1)
+    .single()
+
+  if (error) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        <Link href="/products">← Back to products</Link>
+        /products← Back to products</Link>
+        <h1 style={{ marginTop: 12 }}>Product</h1>
+        <p style={{ color: 'crimson' }}>Failed to load product: {error.message}</p>
+      </main>
+    )
+  }
+
+  const p = (data ?? {}) as Product
+  if (!p?.id || p.is_active === false) {
+    return (
+      <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
+        /products← Back to products</Link>
         <h1 style={{ marginTop: 12 }}>Product not found</h1>
         <p style={{ color: '#666' }}>This product does not exist or is inactive.</p>
       </main>
-    );
+    )
   }
 
-  const effectivePrice = typeof p.offer_price === 'number' ? p.offer_price : p.original_price;
+  const images = sortAndFilterImages(p.product_images ?? [])
+  const mainImage = images[0] ?? null
+  const thumbnails = images.slice(1)
+  const effectivePrice = typeof p.offer_price === 'number' ? p.offer_price : p.original_price
+  const catLabel = p.categories?.label ?? null
+  const catSlug = (p.categories?.slug ?? '')?.toLowerCase() || ''
 
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
       <div style={{ marginBottom: 8, fontSize: 14 }}>
-        <Link href="/products">← Back to products</Link>
-        {p.category ? (
+        /products← Back to products</Link>
+        {catSlug ? (
           <>
             <span style={{ color: '#aaa', margin: '0 8px' }}>/</span>
-            <Link href={`/products?category=${encodeURIComponent(p.category.slug)}`} className="hover:underline">
-              {p.category.label.toLowerCase()}
+            <Link href={`/products?category=${encodeURIComponent(catSlug)}`} className="hover:underline">
+              {(catLabel ?? catSlug).toLowerCase()}
             </Link>
           </>
         ) : null}
       </div>
 
       <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 8 }}>
-        {/* Left: gallery */}
+        {/* Left: Image gallery */}
         <div>
-          <div style={{ position:'relative', width:'100%', height: 420, borderRadius: 8, overflow:'hidden', border:'1px solid #eee', marginBottom: 12 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={p.primary_image_url ?? '/placeholder.png'}
-              alt={p.name ?? 'Product image'}
-              style={{ width:'100%', height:'100%', objectFit:'cover' }}
-            />
-          </div>
+          {mainImage ? (
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: 420,
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  border: '1px solid #eee',
+                }}
+              >
+                <Image
+                  src={mainImage.url!}
+                  alt={mainImage.alt ?? p.name ?? 'Product image'}
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  style={{ objectFit: 'cover' }}
+                  priority
+                />
+              </div>
 
-          {p.images?.length > 1 && (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(90px,1fr))', gap: 8 }}>
-              {p.images.slice(1).map((img, i) => (
-                <div key={i} style={{ position:'relative', width:'100%', height: 90, borderRadius: 6, overflow:'hidden', border:'1px solid #eee' }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img.url ?? ''} alt={img.alt ?? p.name ?? 'Product image'} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+              {thumbnails.length > 0 ? (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
+                    gap: 8,
+                  }}
+                >
+                  {thumbnails.map((img, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        position: 'relative',
+                        width: '100%',
+                        height: 90,
+                        borderRadius: 6,
+                        overflow: 'hidden',
+                        border: '1px solid #eee',
+                      }}
+                    >
+                      <Image
+                        src={img.url!}
+                        alt={img.alt ?? p.name ?? 'Product image'}
+                        fill
+                        sizes="(max-width: 1024px) 25vw, 15vw"
+                        style={{ objectFit: 'cover' }}
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : null}
+            </div>
+          ) : (
+            <div
+              style={{
+                width: '100%',
+                height: 420,
+                borderRadius: 8,
+                border: '1px dashed #ddd',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#888',
+              }}
+            >
+              No images
             </div>
           )}
         </div>
 
-        {/* Right: details */}
+        {/* Right: Details */}
         <div>
           <h1 style={{ margin: '0 0 6px' }}>{p.name ?? 'Untitled'}</h1>
-          {p.category ? (
-            <div style={{ color: '#777', fontSize: 14, marginBottom: 12 }}>{p.category.label.toLowerCase()}</div>
+          {catLabel ? (
+            <div style={{ color: '#777', fontSize: 14, marginBottom: 12 }}>
+              {catLabel.toLowerCase()}
+            </div>
           ) : null}
 
           <div style={{ fontSize: 22, fontWeight: 700 }}>
             {formatInr(effectivePrice)}
             {typeof p.offer_price === 'number' && typeof p.original_price === 'number' ? (
-              <span style={{ color:'#888', marginLeft: 10, textDecoration: 'line-through', fontWeight: 400 }}>
+              <span
+                style={{
+                  color: '#888',
+                  marginLeft: 10,
+                  textDecoration: 'line-through',
+                  fontWeight: 400,
+                }}
+              >
                 {formatInr(p.original_price)}
               </span>
             ) : null}
           </div>
 
           {typeof p.stock === 'number' ? (
-            <div style={{ color:'#555', fontSize: 14, marginTop: 8 }}>Stock: {p.stock}</div>
+            <div style={{ color: '#555', fontSize: 14, marginTop: 8 }}>Stock: {p.stock}</div>
           ) : null}
 
           {p.description ? (
-            <div style={{ marginTop: 16, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{p.description}</div>
+            <div style={{ marginTop: 16, lineHeight: 1.6 }}>{p.description}</div>
           ) : null}
         </div>
       </section>
     </main>
-  );
+  )
 }
