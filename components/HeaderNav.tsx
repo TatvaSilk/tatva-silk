@@ -42,6 +42,7 @@ export default function HeaderNav() {
 
   return (
     <>
+      {/* ====== MAIN HEADER ====== */}
       <header style={{ background: '#131921', color: '#fff' }}>
         <div
           style={{
@@ -55,8 +56,8 @@ export default function HeaderNav() {
             whiteSpace: 'nowrap',
           }}
         >
-          {/* Logo → home */}
-          /
+          {/* LOGO → HOME */}
+          <Link href="/" aria-label="Tatva Silk – Home" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div
               style={{
                 width: 36,
@@ -74,14 +75,19 @@ export default function HeaderNav() {
             <strong>Tatva Silk</strong>
           </Link>
 
-          {/* Search */}
+          {/* SEARCH */}
           <form onSubmit={onSearch} style={{ display: 'flex', flex: 1, maxWidth: 520 }}>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search Tatva Silk"
               aria-label="Search Tatva Silk"
-              style={{ flex: 1, padding: '8px 10px', borderRadius: '6px 0 0 6px', border: 'none' }}
+              style={{
+                flex: 1,
+                padding: '8px 10px',
+                borderRadius: '6px 0 0 6px',
+                border: 'none',
+              }}
             />
             <button
               type="submit"
@@ -98,7 +104,7 @@ export default function HeaderNav() {
             </button>
           </form>
 
-          {/* Account */}
+          {/* ACCOUNT */}
           <div
             onMouseEnter={() => setMenuOpen(true)}
             onMouseLeave={() => setMenuOpen(false)}
@@ -139,16 +145,18 @@ export default function HeaderNav() {
                     Sign out
                   </button>
                 ) : (
-                  /accountSign in</Link>
+                  <Link href="/account">Sign in</Link>
                 )}
               </div>
             )}
           </div>
 
-          {/* Orders */}
-          /ordersOrders</Link>
+          {/* ORDERS */}
+          <Link href="/orders" style={{ fontWeight: 700 }}>
+            Orders
+          </Link>
 
-          {/* Cart */}
+          {/* CART */}
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('cart:open'))}
             style={{
@@ -179,7 +187,7 @@ export default function HeaderNav() {
           </button>
         </div>
 
-        {/* One-row categories with child dropdown */}
+        {/* ====== ONE‑ROW CATEGORIES (parents with sub‑category dropdown on hover) ====== */}
         <nav style={{ background: '#232f3e' }}>
           <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 16px' }}>
             <Suspense fallback={<div style={{ height: 40, color: '#cbd5e1', display: 'flex', alignItems: 'center' }}>Loading…</div>}>
@@ -189,6 +197,7 @@ export default function HeaderNav() {
         </nav>
       </header>
 
+      {/* CART DRAWER */}
       <CartDrawer />
     </>
   );
