@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useCartCount } from '@/hooks/useCartCount';
 import CartDrawer from '@/components/CartDrawer';
-import PublicCategoriesNavSafe from '@/components/PublicCategoriesNavSafe';
+import TwoLevelCategoriesNav from '@/components/TwoLevelCategoriesNav';
 
 export default function HeaderNav() {
   const router = useRouter();
@@ -25,7 +25,9 @@ export default function HeaderNav() {
     supabase.auth.getUser().then(({ data }) => {
       if (mounted) setUserEmail(data.user?.email ?? null);
     });
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [supabase]);
 
   function onSearch(e: React.FormEvent) {
@@ -41,7 +43,7 @@ export default function HeaderNav() {
 
   return (
     <>
-      {/* MAIN HEADER */}
+      {/* ====== MAIN HEADER ====== */}
       <header style={{ background: '#131921', color: '#fff' }}>
         <div
           style={{
@@ -117,16 +119,16 @@ export default function HeaderNav() {
             {menuOpen && (
               <div
                 style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: '100%',
-                    background: '#fff',
-                    color: '#111',
-                    borderRadius: 8,
-                    minWidth: 220,
-                    padding: 12,
-                    zIndex: 9999,
-                    boxShadow: '0 10px 30px rgba(0,0,0,.25)',
+                  position: 'absolute',
+                  right: 0,
+                  top: '100%',
+                  background: '#fff',
+                  color: '#111',
+                  borderRadius: 8,
+                  minWidth: 220,
+                  padding: 12,
+                  zIndex: 9999,
+                  boxShadow: '0 10px 30px rgba(0,0,0,.25)',
                 }}
               >
                 {userEmail ? (
@@ -186,27 +188,23 @@ export default function HeaderNav() {
           </button>
         </div>
 
-        {/* CATEGORY BAR (dynamic from DB) */}
+        {/* ====== TWO‑LEVEL CATEGORY BAR (dynamic from DB) ====== */}
         <nav style={{ background: '#232f3e' }}>
           <div
             style={{
               maxWidth: 1280,
               margin: '0 auto',
-              height: 40,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 18,
+              display: 'block',
               padding: '0 16px',
             }}
           >
-            <ul style={{ display: 'flex', gap: 18, listStyle: 'none', margin: 0, padding: 0 }}>
-              {/* Change parentSlug if your top parent is not "sarees" */}
-              <PublicCategoriesNavSafe parentSlug="sarees" limit={12} />
-            </ul>
+            {/* Row 1 (parents) + Row 2 (active parent's children) */}
+            <TwoLevelCategoriesNav />
           </div>
         </nav>
       </header>
 
+      {/* CART DRAWER PORTAL */}
       <CartDrawer />
     </>
   );
