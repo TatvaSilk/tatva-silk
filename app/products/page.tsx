@@ -29,7 +29,6 @@ function norm(s?: string | null) {
     .replace(/_+/g, '-');
 }
 function levenshtein(a: string, b: string) {
-  // classic DP; OK for short strings (slugs/labels)
   const m = a.length, n = b.length;
   if (m === 0) return n;
   if (n === 0) return m;
@@ -39,141 +38,85 @@ function levenshtein(a: string, b: string) {
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      dp[i][j] = Math.min(
-        dp[i - 1][j] + 1,     // deletion
-        dp[i][j - 1] + 1,     // insertion
-        dp[i - 1][j - 1] + cost // substitution
-      );
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
     }
   }
   return dp[m][n];
 }
 
-/**
- * Robust resolver:
- *  - exact slug (parent/child)
- *  - label contains (case-insensitive)
- *  - direct child fuzzy match (slug/label) via simple Levenshtein (distance <= 2)
- */
+/** Robust resolver: exact slug → label contains → child contains → fuzzy (≤2) */
 async function resolveCategoryFilter(q?: string): Promise<
-  | { childSlug: string }    // exact child by slug or label
-  | { childIds: string[] }   // parent → list of child IDs
+  | { childSlug: string }
+  | { childIds: string[] }
   | null
 > {
   if (!q) return null;
-
   const needleRaw = (q ?? '').trim().toLowerCase();
   const needle = norm(needleRaw);
 
-  // 1) Try exact slug (could be parent or child)
+  // 1) exact slug
   {
-    const { data: bySlug } = await supabase
+    const { data } = await supabase
       .from('categories')
       .select('id, slug, label, parent_id')
       .eq('slug', needle)
       .maybeSingle();
-    if (bySlug?.id) {
-      if (bySlug.parent_id) {
-        return { childSlug: norm(bySlug.slug) };
-      } else {
-        const { data: kids } = await supabase
-          .from('categories')
-          .select('id')
-          .eq('parent_id', bySlug.id);
-        const childIds = (kids ?? []).map((k) => k.id);
-        return { childIds };
-      }
+    if (data?.id) {
+      if (data.parent_id) return { childSlug: norm(data.slug) };
+      const { data: kids } = await supabase.from('categories').select('id').eq('parent_id', data.id);
+      return { childIds: (kids ?? []).map(k => k.id) };
     }
   }
 
-  // 2) Try label contains (parent or child)
+  // 2) label contains
   {
-    const { data: byLabel } = await supabase
+    const { data } = await supabase
       .from('categories')
       .select('id, slug, label, parent_id')
       .ilike('label', `%${needleRaw}%`)
       .maybeSingle();
-    if (byLabel?.id) {
-      if (byLabel.parent_id) {
-        return { childSlug: norm(byLabel.slug) };
-      } else {
-        const { data: kids } = await supabase
-          .from('categories')
-          .select('id')
-          .eq('parent_id', byLabel.id);
-        const childIds = (kids ?? []).map((k) => k.id);
-        return { childIds };
-      }
+    if (data?.id) {
+      if (data.parent_id) return { childSlug: norm(data.slug) };
+      const { data: kids } = await supabase.from('categories').select('id').eq('parent_id', data.id);
+      return { childIds: (kids ?? []).map(k => k.id) };
     }
   }
 
-  // 3) Direct CHILD fallback (slug/label contains)
+  // 3) child contains (slug/label)
   {
     const { data: childHits } = await supabase
       .from('categories')
       .select('id, slug, label, parent_id')
       .or(`slug.ilike.%${needle}%,label.ilike.%${needleRaw}%`)
-      .not('parent_id', 'is', null); // children only
-
-    if (Array.isArray(childHits) && childHits.length > 0) {
-      if (childHits.length === 1) {
-        return { childSlug: norm(childHits[0].slug) };
-      } else {
-        const childIds = childHits.map((c) => c.id);
-        return { childIds };
-      }
+      .not('parent_id', 'is', null);
+    if (childHits?.length) {
+      if (childHits.length === 1) return { childSlug: norm(childHits[0].slug) };
+      return { childIds: childHits.map(c => c.id) };
     }
   }
 
-  // 4) FUZZY fallback (distance <= 2) against ALL categories (then prefer child)
+  // 4) fuzzy (≤2)
   {
-    const { data: all } = await supabase
-      .from('categories')
-      .select('id, slug, label, parent_id');
+    const { data: all } = await supabase.from('categories').select('id, slug, label, parent_id');
+    const rows = (all ?? []).map(r => ({ ...r, nSlug: norm(r.slug), nLabel: norm(r.label) }));
 
-    const rows = (all ?? []).map((r) => ({
-      ...r,
-      nSlug: norm(r.slug),
-      nLabel: norm(r.label),
-    }));
-
-    // find closest child first
-    let bestChild: any = null;
-    let bestChildScore = Number.POSITIVE_INFINITY;
+    let bestChild: any = null, bestChildScore = 1e9;
     for (const r of rows) {
-      if (!r.parent_id) continue; // child only
-      const s1 = levenshtein(r.nSlug, needle);
-      const s2 = levenshtein(r.nLabel, needle);
-      const s = Math.min(s1, s2);
-      if (s < bestChildScore) {
-        bestChildScore = s;
-        bestChild = r;
-      }
+      if (!r.parent_id) continue;
+      const s = Math.min(levenshtein(r.nSlug, needle), levenshtein(r.nLabel, needle));
+      if (s < bestChildScore) bestChildScore = s, bestChild = r;
     }
-    if (bestChild && bestChildScore <= 2) {
-      return { childSlug: bestChild.nSlug };
-    }
+    if (bestChild && bestChildScore <= 2) return { childSlug: bestChild.nSlug };
 
-    // otherwise try parent
-    let bestParent: any = null;
-    let bestParentScore = Number.POSITIVE_INFINITY;
+    let bestParent: any = null, bestParentScore = 1e9;
     for (const r of rows) {
-      if (r.parent_id) continue; // parent only
-      const s1 = levenshtein(r.nSlug, needle);
-      const s2 = levenshtein(r.nLabel, needle);
-      const s = Math.min(s1, s2);
-      if (s < bestParentScore) {
-        bestParentScore = s;
-        bestParent = r;
-      }
+      if (r.parent_id) continue;
+      const s = Math.min(levenshtein(r.nSlug, needle), levenshtein(r.nLabel, needle));
+      if (s < bestParentScore) bestParentScore = s, bestParent = r;
     }
     if (bestParent && bestParentScore <= 2) {
-      const { data: kids } = await supabase
-        .from('categories')
-        .select('id')
-        .eq('parent_id', bestParent.id);
-      const childIds = (kids ?? []).map((k) => k.id);
-      return { childIds };
+      const { data: kids } = await supabase.from('categories').select('id').eq('parent_id', bestParent.id);
+      return { childIds: (kids ?? []).map(k => k.id) };
     }
   }
 
@@ -190,8 +133,6 @@ export default async function ProductsPage({
     : searchParams?.category) as string | undefined;
 
   const filter = await resolveCategoryFilter(qp);
-
-  // Optional debug banner
   const debug = process.env.NEXT_PUBLIC_DEBUG_FILTER === 'true';
   const debugInfo =
     filter && 'childSlug' in filter
@@ -199,37 +140,21 @@ export default async function ProductsPage({
       : filter && 'childIds' in filter
       ? `childIds=[${filter.childIds.join(', ')}]`
       : qp
-      ? `unresolved param="${qp}"`
+      ? `unresolved="${qp}"`
       : 'no category param';
 
-  // If category param provided but not resolved, show ZERO (avoid showing all)
+  // If user passed a category we cannot resolve → show empty (not all)
   if (qp && !filter) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-          <h1 style={{ margin: 0 }}>Products</h1>
-          <div style={{ fontSize: 14, color: '#555' }}>
-            <span>Filtered by: </span>
-            <strong style={{ textTransform: 'capitalize' }}>{qp}</strong>
-            <span style={{ margin: '0 8px' }}>|</span>
-            <Link href="/products">Clear filter</Link>
-          </div>
-        </div>
-
-        {debug ? (
-          <div style={{ background: '#fff7ed', color: '#9a3412', padding: 8, borderRadius: 6, marginBottom: 12 }}>
-            DEBUG: {debugInfo}
-          </div>
-        ) : null}
-
-        <p style={{ color: '#666' }}>
-          No products found in “{qp}”.
-        </p>
+        <Header qp={qp} />
+        {debug && <Debug info={debugInfo} />}
+        <p style={{ color: '#666' }}>No products found in “{qp}”.</p>
       </main>
     );
   }
 
-  // Base select with relation for label display
+  // Base query: also select the text fallbacks (category/subcategory)
   let query = supabase
     .from('products')
     .select(
@@ -241,15 +166,15 @@ export default async function ProductsPage({
       stock,
       is_active,
       category_id,
+      category,
+      subcategory,
       categories:category_id ( slug, label ),
       product_images ( url, alt, sort_order )
     `
     )
     .eq('is_active', true);
 
-  // Apply the resolved filter
   if (filter && 'childSlug' in filter) {
-    // child → filter by relation (inner join)
     query = supabase
       .from('products')
       .select(
@@ -261,6 +186,8 @@ export default async function ProductsPage({
         stock,
         is_active,
         category_id,
+        category,
+        subcategory,
         categories:category_id!inner ( slug, label ),
         product_images ( url, alt, sort_order )
       `
@@ -269,12 +196,8 @@ export default async function ProductsPage({
       .eq('categories.slug', filter.childSlug);
   } else if (filter && 'childIds' in filter) {
     const ids = filter.childIds;
-    if (Array.isArray(ids) && ids.length > 0) {
-      query = query.in('category_id', ids);
-    } else {
-      // parent resolved but has no children → empty result
-      query = query.eq('id', '___none___');
-    }
+    if (ids?.length) query = query.in('category_id', ids);
+    else query = query.eq('id', '___none___');
   }
 
   query = query.order('created_at', { ascending: false });
@@ -284,12 +207,8 @@ export default async function ProductsPage({
   if (error) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        <h1>Products</h1>
-        {debug ? (
-          <div style={{ background: '#fff7ed', color: '#9a3412', padding: 8, borderRadius: 6, margin: '8px 0' }}>
-            DEBUG: {debugInfo}
-          </div>
-        ) : null}
+        <Header qp={qp} />
+        {debug && <Debug info={debugInfo} />}
         <p style={{ color: 'crimson' }}>Failed to load products: {error.message}</p>
       </main>
     );
@@ -299,23 +218,8 @@ export default async function ProductsPage({
 
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <h1 style={{ margin: 0 }}>Products</h1>
-        {qp ? (
-          <div style={{ fontSize: 14, color: '#555' }}>
-            <span>Filtered by: </span>
-            <strong style={{ textTransform: 'capitalize' }}>{qp}</strong>
-            <span style={{ margin: '0 8px' }}>|</span>
-            <Link href="/products">Clear filter</Link>
-          </div>
-        ) : null}
-      </div>
-
-      {debug ? (
-        <div style={{ background: '#fff7ed', color: '#9a3412', padding: 8, borderRadius: 6, marginBottom: 12 }}>
-          DEBUG: {debugInfo}
-        </div>
-      ) : null}
+      <Header qp={qp} />
+      {debug && <Debug info={debugInfo} />}
 
       {rows.length === 0 ? (
         <p style={{ color: '#666' }}>
@@ -324,26 +228,19 @@ export default async function ProductsPage({
       ) : (
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
           {rows.map((r) => {
+            // Prefer relation → fallback to text columns we just synced
             const rel = Array.isArray(r.categories) ? (r.categories[0] ?? null) : (r.categories ?? null);
-            const label: string | null = rel?.label ?? null;
-            const slug: string = (rel?.slug ?? '')?.toLowerCase() || '';
+            const childLabel = rel?.label ?? (r.subcategory ? String(r.subcategory) : null);
+            const childSlug  = (rel?.slug ?? r.subcategory ?? '')?.toLowerCase() || '';
+            const parentLabel = r.category ? String(r.category).replace(/-/g, ' ') : null; // presentational
+
             const firstImage = pickFirstImage((r.product_images ?? []) as ProductImage[]);
-            const effectivePrice =
-              typeof r.offer_price === 'number' ? r.offer_price : (r.original_price as number | null);
+            const price = typeof r.offer_price === 'number' ? r.offer_price : (r.original_price as number | null);
 
             return (
               <article key={r.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
                 {firstImage ? (
-                  <div
-                    style={{
-                      position: 'relative',
-                      width: '100%',
-                      height: 180,
-                      borderRadius: 8,
-                      overflow: 'hidden',
-                      marginBottom: 8,
-                    }}
-                  >
+                  <div style={{ position: 'relative', width: '100%', height: 180, borderRadius: 8, overflow: 'hidden', marginBottom: 8 }}>
                     <Image
                       src={firstImage.url!}
                       alt={firstImage.alt ?? r.name ?? 'Product image'}
@@ -356,17 +253,17 @@ export default async function ProductsPage({
 
                 <h3 style={{ margin: '8px 0 4px' }}>{r.name ?? 'Untitled'}</h3>
 
-                {label ? (
-                  <div style={{ color: '#777', fontSize: 12, marginBottom: 6 }}>
-                    <Link href={`/products?category=${encodeURIComponent(slug)}`} className="hover:underline">
-                      {label.toLowerCase()}
+                <div style={{ color: '#777', fontSize: 12, marginBottom: 6 }}>
+                  {parentLabel ? parentLabel : '(no category)'}
+                  {parentLabel && childLabel ? ' • ' : null}
+                  {childLabel ? (
+                    <Link href={`/products?category=${encodeURIComponent(childSlug)}`} className="hover:underline">
+                      {String(childLabel).toLowerCase()}
                     </Link>
-                  </div>
-                ) : (
-                  <div style={{ color: '#999', fontSize: 12, marginBottom: 6 }}>(no sub‑category)</div>
-                )}
+                  ) : '(no sub‑category)'}
+                </div>
 
-                <div style={{ fontWeight: 600 }}>{formatInr(effectivePrice)}</div>
+                <div style={{ fontWeight: 600 }}>{formatInr(price)}</div>
 
                 <div style={{ marginTop: 10 }}>
                   <Link href={`/products/${r.id}`} style={{ color: '#2563eb' }}>
@@ -379,5 +276,29 @@ export default async function ProductsPage({
         </section>
       )}
     </main>
+  );
+}
+
+/* ---------- Small helpers for header + debug ---------- */
+function Header({ qp }: { qp?: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+      <h1 style={{ margin: 0 }}>Products</h1>
+      {qp ? (
+        <div style={{ fontSize: 14, color: '#555' }}>
+          <span>Filtered by: </span>
+          <strong style={{ textTransform: 'capitalize' }}>{qp}</strong>
+          <span style={{ margin: '0 8px' }}>|</span>
+          <Link href="/products">Clear filter</Link>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+function Debug({ info }: { info: string }) {
+  return (
+    <div style={{ background: '#fff7ed', color: '#9a3412', padding: 8, borderRadius: 6, marginBottom: 12 }}>
+      DEBUG: {info}
+    </div>
   );
 }
