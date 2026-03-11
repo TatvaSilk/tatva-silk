@@ -30,15 +30,15 @@ function norm(s?: string | null) {
 }
 
 /**
- * Deterministic resolver → list of CHILD category IDs:
+ * Deterministic resolver → list of CHILD category IDs from a term:
  * 1) exact child slug
- * 2) exact parent slug → all its children
- * 3) child label contains (case-insens)
- * 4) parent label contains → all its children
+ * 2) exact parent slug → all children
+ * 3) child label contains
+ * 4) parent label contains → all children
  */
-async function resolveChildIds(q?: string): Promise<string[]> {
-  if (!q) return [];
-  const raw = (q ?? '').trim();
+async function resolveChildIds(term?: string): Promise<string[]> {
+  if (!term) return [];
+  const raw = term.trim();
   const slug = norm(raw);
 
   // 1) exact child slug
@@ -65,7 +65,7 @@ async function resolveChildIds(q?: string): Promise<string[]> {
         .from('categories')
         .select('id')
         .eq('parent_id', parent.id);
-      return (kids ?? []).map(k => k.id);
+      return (kids ?? []).map((k) => k.id);
     }
   }
 
@@ -76,7 +76,7 @@ async function resolveChildIds(q?: string): Promise<string[]> {
       .select('id')
       .not('parent_id', 'is', null)
       .ilike('label', `%${raw}%`);
-    if (childHits?.length) return childHits.map(c => c.id);
+    if (childHits?.length) return childHits.map((c) => c.id);
   }
 
   // 4) parent label contains → children
@@ -92,11 +92,17 @@ async function resolveChildIds(q?: string): Promise<string[]> {
         .from('categories')
         .select('id')
         .eq('parent_id', parentHit.id);
-      return (kids ?? []).map(k => k.id);
+      return (kids ?? []).map((k) => k.id);
     }
   }
 
   return [];
+}
+
+function intersect(a: string[], b: string[]) {
+  if (!a.length || !b.length) return [];
+  const setB = new Set(b);
+  return a.filter((x) => setB.has(x));
 }
 
 export default async function ProductsPage({
@@ -104,6 +110,7 @@ export default async function ProductsPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
+  // URL params
   const qp = (Array.isArray(searchParams?.category)
     ? searchParams?.category[0]
     : searchParams?.category) as string | undefined;
@@ -112,26 +119,52 @@ export default async function ProductsPage({
     ? searchParams?.search[0]
     : searchParams?.search) as string | undefined;
 
-  // --------- Decide filter strategy ----------
-  // If a category is present → resolve and filter by its childIds.
-  // Else if a search term resolves to childIds → prefer category-style filtering.
-  // Else → free-text search.
-  const childIdsFromCategory = await resolveChildIds(qp);
-  const childIdsFromSearch  = !qp && qSearch ? await resolveChildIds(qSearch) : [];
+  // Resolve IDs
+  const idsFromCategory = await resolveChildIds(qp);       // parent or child
+  const idsFromSearchAsCategory =
+    !qp && qSearch ? await resolveChildIds(qSearch) : [];  // only when no category param
 
-  const useCategoryFilter = qp && childIdsFromCategory.length > 0;
-  const useSearchAsCategory = !qp && qSearch && childIdsFromSearch.length > 0;
+  // Decide which IDs to use (intersection logic)
+  // Cases:
+  // 1) category present, search resolves to category → INTERSECT
+  // 2) category present, search is general text → use category IDs + text filter
+  // 3) no category, search resolves to category → use those IDs
+  // 4) no category, plain text search → no IDs (text only)
+  let finalIds: string[] = [];
 
-  // EARLY RETURN if user provided a category but it resolves to 0 child IDs.
-  if (qp && !useCategoryFilter) {
-    return (
-      <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        <Header qp={qp} qSearch={qSearch} />
-        <p style={{ color: '#666' }}>No products found in “{qp}”.</p>
-      </main>
-    );
+  if (qp) {
+    if (!idsFromCategory.length) {
+      // Category param present but could not resolve → early return
+      return (
+        <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
+          <Header qp={qp} qSearch={qSearch} />
+          <p style={{ color: '#666' }}>No products found in “{qp}”.</p>
+        </main>
+      );
+    }
+
+    // If user typed a search that itself resolves to category IDs, intersect
+    const idsFromSearchWhenCategory = qSearch ? await resolveChildIds(qSearch) : [];
+    finalIds = idsFromSearchWhenCategory.length
+      ? intersect(idsFromCategory, idsFromSearchWhenCategory)
+      : idsFromCategory;
+
+    // If intersection is empty but user tried to sub‑select a child that
+    // doesn't belong under the current parent, return empty quickly.
+    if (idsFromSearchWhenCategory.length && finalIds.length === 0) {
+      return (
+        <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
+          <Header qp={qp} qSearch={qSearch} />
+          <p style={{ color: '#666' }}>No products found.</p>
+        </main>
+      );
+    }
+  } else if (idsFromSearchAsCategory.length) {
+    // No category param; search itself is a category → use those IDs
+    finalIds = idsFromSearchAsCategory;
   }
 
+  // Build query
   const baseSelect = `
     id,
     name,
@@ -153,13 +186,13 @@ export default async function ProductsPage({
     .eq('is_active', true)
     .order('created_at', { ascending: false });
 
-  if (useCategoryFilter) {
-    query = query.in('category_id', childIdsFromCategory);
-  } else if (useSearchAsCategory) {
-    // Treat search term like a category if it resolves to child IDs
-    query = query.in('category_id', childIdsFromSearch);
-  } else if (qSearch && qSearch.trim()) {
-    // Free-text search across name/description/category/subcategory
+  // Apply ID filters when we have them
+  if (finalIds.length) {
+    query = query.in('category_id', finalIds);
+  }
+
+  // If we didn't resolve the search to category IDs, apply free‑text search
+  if (qSearch && qSearch.trim() && !idsFromSearchAsCategory.length && !(qp && (await resolveChildIds(qSearch)).length)) {
     const term = `%${qSearch.trim()}%`;
     query = query.or(
       `name.ilike.${term},description.ilike.${term},category.ilike.${term},subcategory.ilike.${term}`
@@ -182,6 +215,7 @@ export default async function ProductsPage({
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
       <Header qp={qp} qSearch={qSearch} />
+
       {rows.length === 0 ? (
         <p style={{ color: '#666' }}>
           {qp
