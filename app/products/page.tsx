@@ -38,16 +38,16 @@ function norm(s?: string | null) {
  */
 async function resolveChildIds(q?: string): Promise<string[]> {
   if (!q) return [];
-  const needleRaw = (q ?? '').trim();
-  const needle = norm(needleRaw);
+  const raw = (q ?? '').trim();
+  const slug = norm(raw);
 
   // 1) exact child slug
   {
     const { data } = await supabase
       .from('categories')
       .select('id')
-      .eq('slug', needle)
-      .not('parent_id', 'is', null) // only children
+      .eq('slug', slug)
+      .not('parent_id', 'is', null)
       .maybeSingle();
     if (data?.id) return [data.id];
   }
@@ -57,8 +57,8 @@ async function resolveChildIds(q?: string): Promise<string[]> {
     const { data: parent } = await supabase
       .from('categories')
       .select('id')
-      .eq('slug', needle)
-      .is('parent_id', null) // only parents
+      .eq('slug', slug)
+      .is('parent_id', null)
       .maybeSingle();
     if (parent?.id) {
       const { data: kids } = await supabase
@@ -75,7 +75,7 @@ async function resolveChildIds(q?: string): Promise<string[]> {
       .from('categories')
       .select('id')
       .not('parent_id', 'is', null)
-      .ilike('label', `%${needleRaw}%`);
+      .ilike('label', `%${raw}%`);
     if (childHits?.length) return childHits.map(c => c.id);
   }
 
@@ -85,7 +85,7 @@ async function resolveChildIds(q?: string): Promise<string[]> {
       .from('categories')
       .select('id')
       .is('parent_id', null)
-      .ilike('label', `%${needleRaw}%`)
+      .ilike('label', `%${raw}%`)
       .maybeSingle();
     if (parentHit?.id) {
       const { data: kids } = await supabase
@@ -112,15 +112,21 @@ export default async function ProductsPage({
     ? searchParams?.search[0]
     : searchParams?.search) as string | undefined;
 
-  const childIds = await resolveChildIds(qp);
-  const debug = process.env.NEXT_PUBLIC_DEBUG_FILTER === 'true';
+  // --------- Decide filter strategy ----------
+  // If a category is present → resolve and filter by its childIds.
+  // Else if a search term resolves to childIds → prefer category-style filtering.
+  // Else → free-text search.
+  const childIdsFromCategory = await resolveChildIds(qp);
+  const childIdsFromSearch  = !qp && qSearch ? await resolveChildIds(qSearch) : [];
 
-  // EARLY RETURN when a category was provided but we resolved 0 child IDs.
-  if (qp && childIds.length === 0) {
+  const useCategoryFilter = qp && childIdsFromCategory.length > 0;
+  const useSearchAsCategory = !qp && qSearch && childIdsFromSearch.length > 0;
+
+  // EARLY RETURN if user provided a category but it resolves to 0 child IDs.
+  if (qp && !useCategoryFilter) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        <Header qp={qp} />
-        {debug && <Debug info={`childIds=[], search=${qSearch ?? '(none)'}`} />}
+        <Header qp={qp} qSearch={qSearch} />
         <p style={{ color: '#666' }}>No products found in “{qp}”.</p>
       </main>
     );
@@ -141,19 +147,19 @@ export default async function ProductsPage({
     product_images ( url, alt, sort_order )
   `;
 
-  // Build the query: filter strictly by category_id if we have targets
   let query = supabase
     .from('products')
     .select(baseSelect)
     .eq('is_active', true)
     .order('created_at', { ascending: false });
 
-  if (qp && childIds.length > 0) {
-    query = query.in('category_id', childIds);
-  }
-
-  // Search matches title/description/category/subcategory text
-  if (qSearch && qSearch.trim()) {
+  if (useCategoryFilter) {
+    query = query.in('category_id', childIdsFromCategory);
+  } else if (useSearchAsCategory) {
+    // Treat search term like a category if it resolves to child IDs
+    query = query.in('category_id', childIdsFromSearch);
+  } else if (qSearch && qSearch.trim()) {
+    // Free-text search across name/description/category/subcategory
     const term = `%${qSearch.trim()}%`;
     query = query.or(
       `name.ilike.${term},description.ilike.${term},category.ilike.${term},subcategory.ilike.${term}`
@@ -165,10 +171,7 @@ export default async function ProductsPage({
   if (error) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        <Header qp={qp} />
-        {debug && (
-          <Debug info={`ERROR | childIds=[${childIds.join(', ')}] | search=${qSearch ?? '(none)'}`} />
-        )}
+        <Header qp={qp} qSearch={qSearch} />
         <p style={{ color: 'crimson' }}>Failed to load products: {error.message}</p>
       </main>
     );
@@ -178,11 +181,7 @@ export default async function ProductsPage({
 
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-      <Header qp={qp} />
-      {debug && (
-        <Debug info={`childIds=[${childIds.join(', ')}] | search=${qSearch ?? '(none)'}`} />
-      )}
-
+      <Header qp={qp} qSearch={qSearch} />
       {rows.length === 0 ? (
         <p style={{ color: '#666' }}>
           {qp
@@ -194,7 +193,6 @@ export default async function ProductsPage({
       ) : (
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
           {rows.map((r) => {
-            // Prefer relation; fallback to text columns
             const rel = Array.isArray(r.categories) ? (r.categories[0] ?? null) : (r.categories ?? null);
             const childLabel = rel?.label ?? (r.subcategory ? String(r.subcategory) : null);
             const childSlug  = (rel?.slug ?? r.subcategory ?? '')?.toLowerCase() || '';
@@ -248,7 +246,7 @@ export default async function ProductsPage({
 }
 
 /* ---------- small helpers ---------- */
-function Header({ qp }: { qp?: string }) {
+function Header({ qp, qSearch }: { qp?: string; qSearch?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
       <h1 style={{ margin: 0 }}>Products</h1>
@@ -259,14 +257,14 @@ function Header({ qp }: { qp?: string }) {
           <span style={{ margin: '0 8px' }}>|</span>
           <Link href="/products">Clear filter</Link>
         </div>
+      ) : qSearch ? (
+        <div style={{ fontSize: 14, color: '#555' }}>
+          <span>Search results for: </span>
+          <strong>{qSearch}</strong>
+          <span style={{ margin: '0 8px' }}>|</span>
+          <Link href="/products">Clear</Link>
+        </div>
       ) : null}
-    </div>
-  );
-}
-function Debug({ info }: { info: string }) {
-  return (
-    <div style={{ background: '#fff7ed', color: '#9a3412', padding: 8, borderRadius: 6, marginBottom: 12 }}>
-      DEBUG: {info}
     </div>
   );
 }
