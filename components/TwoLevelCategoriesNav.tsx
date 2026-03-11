@@ -10,7 +10,7 @@ type Parent = Cat & { children?: Cat[] };
 export default function TwoLevelCategoriesNav({
   limitParents = 12,
   limitChildren = 16,
-  linkClassName = 'site-nav__a', // use your class or plain text
+  linkClassName = '',
 }: {
   limitParents?: number;
   limitChildren?: number;
@@ -22,7 +22,6 @@ export default function TwoLevelCategoriesNav({
   const [parents, setParents] = useState<Parent[]>([]);
   const [activeParentSlug, setActiveParentSlug] = useState<string>('');
 
-  // Fetch parents + children (our Step‑1 API)
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -34,15 +33,12 @@ export default function TwoLevelCategoriesNav({
 
         setParents(data ?? []);
 
-        // Determine active parent from URL ?category=
-        // 1) If URL matches a parent slug → use that parent
+        // Decide which parent is active based on URL ?category=
         const byParent = (data ?? []).find(p => (p.slug ?? '').toLowerCase() === urlCat);
         if (byParent) {
           setActiveParentSlug((byParent.slug ?? '').toLowerCase());
           return;
         }
-
-        // 2) Else, if URL matches any child → use that child's parent
         for (const p of data ?? []) {
           const childHit = (p.children ?? []).find(c => (c.slug ?? '').toLowerCase() === urlCat);
           if (childHit) {
@@ -50,8 +46,6 @@ export default function TwoLevelCategoriesNav({
             return;
           }
         }
-
-        // 3) Default: first parent
         if (data?.length) setActiveParentSlug((data[0].slug ?? '').toLowerCase());
       } catch {
         setParents([]);
@@ -60,7 +54,6 @@ export default function TwoLevelCategoriesNav({
     return () => { alive = false; };
   }, [urlCat]);
 
-  // Safety: sorted lists + limits
   const parentItems = useMemo(() => {
     const list = (parents ?? []).slice().sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''));
     return list.slice(0, limitParents);
@@ -72,7 +65,6 @@ export default function TwoLevelCategoriesNav({
     return kids.slice(0, limitChildren);
   }, [parents, activeParentSlug, limitChildren]);
 
-  // Helper: active state (for styling the selected parent)
   const isActiveParent = (slug?: string | null) => (slug ?? '').toLowerCase() === activeParentSlug;
   const isActiveChild = (slug?: string | null) => (slug ?? '').toLowerCase() === urlCat;
 
@@ -80,8 +72,8 @@ export default function TwoLevelCategoriesNav({
 
   return (
     <>
-      {/* Row 1: Main Categories (parents) */}
-      <ul className="cat-list" style={{ marginBottom: 0 }}>
+      {/* Row 1: Main categories (parents) */}
+      <ul style={{ display: 'flex', gap: 18, listStyle: 'none', margin: 0, padding: '10px 0' }}>
         {parentItems.map((p) => {
           const pSlug = (p.slug ?? '').toLowerCase();
           return (
@@ -89,9 +81,8 @@ export default function TwoLevelCategoriesNav({
               <Link
                 href={`/products?category=${encodeURIComponent(pSlug)}`}
                 className={linkClassName}
-                // highlight active parent
-                style={isActiveParent(p.slug) ? { fontWeight: 800, color: 'var(--accent)' } : undefined}
-                onMouseEnter={() => setActiveParentSlug(pSlug)} // hover also switches child row
+                style={isActiveParent(p.slug) ? { fontWeight: 800, color: '#febd69' } : { color: '#fff' }}
+                onMouseEnter={() => setActiveParentSlug(pSlug)}
               >
                 {p.label}
               </Link>
@@ -101,7 +92,7 @@ export default function TwoLevelCategoriesNav({
       </ul>
 
       {/* Row 2: Sub‑categories (children of active parent) */}
-      <ul className="cat-list" style={{ paddingTop: 6 }}>
+      <ul style={{ display: 'flex', gap: 18, listStyle: 'none', margin: 0, padding: '6px 0 10px' }}>
         {activeChildren.map((c) => {
           const cSlug = (c.slug ?? '').toLowerCase();
           const active = isActiveChild(c.slug);
@@ -110,7 +101,7 @@ export default function TwoLevelCategoriesNav({
               <Link
                 href={`/products?category=${encodeURIComponent(cSlug)}`}
                 className={linkClassName}
-                style={active ? { fontWeight: 800, color: 'var(--accent)' } : undefined}
+                style={active ? { fontWeight: 800, color: '#febd69' } : { color: '#fff' }}
               >
                 {c.label}
               </Link>
