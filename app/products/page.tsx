@@ -22,6 +22,11 @@ function pickFirstImage(images: ProductImage[] = []) {
   return imgs[0] ?? null;
 }
 
+/** Resolve ?category= to:
+ *  - { childSlug } when it's a child
+ *  - { childIds } when it's a parent
+ *  - null       when nothing matches (then we will show ZERO items)
+ */
 async function resolveCategoryFilter(q?: string): Promise<
   | { childSlug: string }
   | { childIds: string[] }
@@ -30,7 +35,7 @@ async function resolveCategoryFilter(q?: string): Promise<
   if (!q) return null;
   const needle = q.trim().toLowerCase();
 
-  // child / parent by exact slug
+  // Try exact slug
   const { data: bySlug } = await supabase
     .from('categories')
     .select('id, slug, parent_id')
@@ -38,13 +43,21 @@ async function resolveCategoryFilter(q?: string): Promise<
     .maybeSingle();
 
   if (bySlug?.slug) {
-    if (bySlug.parent_id) return { childSlug: bySlug.slug };
-    const { data: kids } = await supabase.from('categories').select('id').eq('parent_id', bySlug.id);
-    const childIds = (kids ?? []).map(k => k.id);
-    return childIds.length ? { childIds } : null;
+    if (bySlug.parent_id) {
+      // Child category
+      return { childSlug: bySlug.slug };
+    } else {
+      // Parent -> gather children IDs
+      const { data: kids } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('parent_id', bySlug.id);
+      const childIds = (kids ?? []).map((k) => k.id);
+      return childIds.length ? { childIds } : { childIds: [] };
+    }
   }
 
-  // fallback on label contains
+  // Fallback: label contains (handles "Kanjivaram" vs "Kanjivam", case-insensitive)
   const { data: byLabel } = await supabase
     .from('categories')
     .select('id, slug, parent_id')
@@ -52,12 +65,19 @@ async function resolveCategoryFilter(q?: string): Promise<
     .maybeSingle();
 
   if (byLabel?.slug) {
-    if (byLabel.parent_id) return { childSlug: byLabel.slug };
-    const { data: kids } = await supabase.from('categories').select('id').eq('parent_id', byLabel.id);
-    const childIds = (kids ?? []).map(k => k.id);
-    return childIds.length ? { childIds } : null;
+    if (byLabel.parent_id) {
+      return { childSlug: byLabel.slug };
+    } else {
+      const { data: kids } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('parent_id', byLabel.id);
+      const childIds = (kids ?? []).map((k) => k.id);
+      return childIds.length ? { childIds } : { childIds: [] };
+    }
   }
 
+  // Not resolvable
   return null;
 }
 
@@ -66,53 +86,92 @@ export default async function ProductsPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
-  const q = (Array.isArray(searchParams?.category) ? searchParams?.category[0] : searchParams?.category) as string | undefined;
-  const filter = await resolveCategoryFilter(q);
+  const qp = (Array.isArray(searchParams?.category)
+    ? searchParams?.category[0]
+    : searchParams?.category) as string | undefined;
 
-  // base select with relation for label display
+  const filter = await resolveCategoryFilter(qp);
+
+  // === DEBUG BANNER (turn on by setting NEXT_PUBLIC_DEBUG_FILTER=true in Vercel) ===
+  const debug = process.env.NEXT_PUBLIC_DEBUG_FILTER === 'true';
+
+  // Base select with relation for label display
   let query = supabase
     .from('products')
-    .select(`
+    .select(
+      `
       id,
       name,
       original_price,
       offer_price,
       stock,
       is_active,
+      category_id,
       categories:category_id ( slug, label ),
       product_images ( url, alt, sort_order )
-    `)
+    `
+    )
     .eq('is_active', true);
 
+  // Apply filter:
   if (filter && 'childSlug' in filter) {
-    // filter by relation (inner join when filtering on relation)
+    // Filter by relation (inner join when filtering by the joined field)
     query = supabase
       .from('products')
-      .select(`
+      .select(
+        `
         id,
         name,
         original_price,
         offer_price,
         stock,
         is_active,
+        category_id,
         categories:category_id!inner ( slug, label ),
         product_images ( url, alt, sort_order )
-      `)
+      `
+      )
       .eq('is_active', true)
       .eq('categories.slug', filter.childSlug);
-  } else if (filter && 'childIds' in filter && filter.childIds.length) {
-    // parent → filter by product.category_id IN children
-    query = query.in('category_id', filter.childIds);
+  } else if (filter && 'childIds' in filter) {
+    // Parent: filter on product.category_id in the set of child IDs
+    const ids = filter.childIds;
+    if (ids.length === 0) {
+      // parent found but no children in DB -> show zero items
+      query = query.eq('id', '___no_such_id___');
+    } else {
+      query = query.in('category_id', ids);
+    }
+  } else if (qp) {
+    // If user passed a category param that we could not resolve,
+    // DO NOT show all products. Show none so it's obvious.
+    query = query.eq('id', '___no_such_id___');
   }
 
+  // Newest first
   query = query.order('created_at', { ascending: false });
 
   const { data, error } = await query;
+
+  // === DEBUG: we surface the final filter that got applied ===
+  const debugInfo =
+    filter && 'childSlug' in filter
+      ? `childSlug=${filter.childSlug}`
+      : filter && 'childIds' in filter
+      ? `childIds=[${filter.childIds.join(', ')}]`
+      : qp
+      ? `unresolved param="${qp}"`
+      : 'no category param';
 
   if (error) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
         <h1>Products</h1>
+        {debug ? (
+          <div style={{ background: '#fff7ed', color: '#9a3412', padding: 8, borderRadius: 6, margin: '8px 0' }}>
+            DEBUG: {debugInfo}
+          </div>
+        ) : null}
         <p style={{ color: 'crimson' }}>Failed to load products: {error.message}</p>
       </main>
     );
@@ -124,19 +183,25 @@ export default async function ProductsPage({
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <h1 style={{ margin: 0 }}>Products</h1>
-        {q ? (
+        {qp ? (
           <div style={{ fontSize: 14, color: '#555' }}>
             <span>Filtered by: </span>
-            <strong style={{ textTransform: 'capitalize' }}>{q}</strong>
+            <strong style={{ textTransform: 'capitalize' }}>{qp}</strong>
             <span style={{ margin: '0 8px' }}>|</span>
-            <Link href="/products">Clear filter</Link>
+            /productsClear filter</Link>
           </div>
         ) : null}
       </div>
 
+      {debug ? (
+        <div style={{ background: '#fff7ed', color: '#9a3412', padding: 8, borderRadius: 6, marginBottom: 12 }}>
+          DEBUG: {debugInfo}
+        </div>
+      ) : null}
+
       {rows.length === 0 ? (
         <p style={{ color: '#666' }}>
-          {q ? `No products found in "${q}".` : 'No products found.'}
+          {qp ? `No products found in "${qp}".` : 'No products found.'}
         </p>
       ) : (
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
@@ -145,8 +210,7 @@ export default async function ProductsPage({
             const label: string | null = rel?.label ?? null;
             const slug: string = (rel?.slug ?? '')?.toLowerCase() || '';
             const firstImage = pickFirstImage((r.product_images ?? []) as ProductImage[]);
-            const effectivePrice =
-              typeof r.offer_price === 'number' ? r.offer_price : (r.original_price as number | null);
+            const effectivePrice = typeof r.offer_price === 'number' ? r.offer_price : (r.original_price as number | null);
 
             return (
               <article key={r.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
@@ -170,7 +234,11 @@ export default async function ProductsPage({
                       {label.toLowerCase()}
                     </Link>
                   </div>
-                ) : null}
+                ) : (
+                  <div style={{ color: '#999', fontSize: 12, marginBottom: 6 }}>
+                    (no sub‑category)
+                  </div>
+                )}
 
                 <div style={{ fontWeight: 600 }}>{formatInr(effectivePrice)}</div>
 
@@ -187,4 +255,3 @@ export default async function ProductsPage({
     </main>
   );
 }
-``
