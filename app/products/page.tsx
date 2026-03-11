@@ -29,7 +29,7 @@ function norm(s?: string | null) {
     .replace(/_+/g, '-');
 }
 
-/** Resolve a term to CHILD category IDs (deterministic): */
+/** Resolve a term to CHILD category IDs (deterministic) */
 async function resolveChildIds(term?: string): Promise<string[]> {
   if (!term) return [];
   const raw = term.trim();
@@ -59,7 +59,7 @@ async function resolveChildIds(term?: string): Promise<string[]> {
         .from('categories')
         .select('id')
         .eq('parent_id', parent.id);
-      return (kids ?? []).map(k => k.id);
+      return (kids ?? []).map((k) => k.id);
     }
   }
 
@@ -70,7 +70,7 @@ async function resolveChildIds(term?: string): Promise<string[]> {
       .select('id')
       .not('parent_id', 'is', null)
       .ilike('label', `%${raw}%`);
-    if (childHits?.length) return childHits.map(c => c.id);
+    if (childHits?.length) return childHits.map((c) => c.id);
   }
 
   // 4) parent label contains → children
@@ -86,7 +86,7 @@ async function resolveChildIds(term?: string): Promise<string[]> {
         .from('categories')
         .select('id')
         .eq('parent_id', parentHit.id);
-      return (kids ?? []).map(k => k.id);
+      return (kids ?? []).map((k) => k.id);
     }
   }
 
@@ -109,7 +109,7 @@ export default async function ProductsPage({
   // Resolve IDs only from the category param (nav clicks)
   const idsFromCategory = await resolveChildIds(qp);
 
-  // If category was provided but did not resolve → early “no products” (no DB call)
+  // If category was provided but did not resolve → early “no products”
   if (qp && idsFromCategory.length === 0) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
@@ -141,12 +141,12 @@ export default async function ProductsPage({
     .eq('is_active', true)
     .order('created_at', { ascending: false });
 
-  // Apply strict category filter (from nav)
+  // Strict category filter from nav
   if (idsFromCategory.length > 0) {
     query = query.in('category_id', idsFromCategory);
   }
 
-  // Apply free-text search (does not try to re-interpret as category)
+  // Free-text search across name/description/category/subcategory
   if (qSearch && qSearch.trim()) {
     const term = `%${qSearch.trim()}%`;
     query = query.or(
@@ -234,7 +234,7 @@ export default async function ProductsPage({
   );
 }
 
-/* ---------- small helpers ---------- */
+/* ---------- small helpers (VALID JSX) ---------- */
 function Header({ qp, qSearch }: { qp?: string; qSearch?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
@@ -244,14 +244,14 @@ function Header({ qp, qSearch }: { qp?: string; qSearch?: string }) {
           <span>Filtered by: </span>
           <strong style={{ textTransform: 'capitalize' }}>{qp}</strong>
           <span style={{ margin: '0 8px' }}>|</span>
-          /productsClear filter</Link>
+          <Link href="/products">Clear filter</Link>
         </div>
       ) : qSearch ? (
         <div style={{ fontSize: 14, color: '#555' }}>
           <span>Search results for: </span>
           <strong>{qSearch}</strong>
           <span style={{ margin: '0 8px' }}>|</span>
-          /productsClear</Link>
+          <Link href="/products">Clear</Link>
         </div>
       ) : null}
     </div>
