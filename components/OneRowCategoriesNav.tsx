@@ -1,3 +1,4 @@
+// components/OneRowCategoriesNav.tsx
 'use client';
 
 import Link from 'next/link';
@@ -14,18 +15,30 @@ export default function OneRowCategoriesNav({
 }) {
   const [parents, setParents] = useState<Cat[]>([]);
   const [hoverSlug, setHoverSlug] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        // IMPORTANT: no-store avoids client cache
+        setLoading(true);
+        setError(null);
+        // IMPORTANT: avoid client cache
         const res = await fetch('/api/store/categories', { cache: 'no-store' });
-        if (!res.ok) throw new Error('Failed to fetch categories');
+        if (!res.ok) {
+          const msg = await res.text();
+          throw new Error(msg || `HTTP ${res.status}`);
+        }
         const data = await res.json();
         if (alive) setParents(Array.isArray(data) ? data : []);
-      } catch {
-        if (alive) setParents([]);
+      } catch (e: any) {
+        if (alive) {
+          setParents([]);
+          setError(e?.message ?? 'Failed to load categories');
+        }
+      } finally {
+        if (alive) setLoading(false);
       }
     })();
     return () => { alive = false; };
@@ -36,7 +49,29 @@ export default function OneRowCategoriesNav({
     return list.slice(0, limitParents);
   }, [parents, limitParents]);
 
-  if (!parentItems.length) return null;
+  if (loading) {
+    return (
+      <div style={{ height: 40, display: 'flex', alignItems: 'center', color: '#cbd5e1' }}>
+        Loading categories…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ height: 40, display: 'flex', alignItems: 'center', color: '#fca5a5' }}>
+        Categories failed: {error}
+      </div>
+    );
+  }
+
+  if (!parentItems.length) {
+    return (
+      <div style={{ height: 40, display: 'flex', alignItems: 'center', color: '#cbd5e1' }}>
+        No categories found
+      </div>
+    );
+  }
 
   return (
     <ul style={{ display: 'flex', gap: 18, listStyle: 'none', margin: 0, padding: '10px 0', position: 'relative' }}>
