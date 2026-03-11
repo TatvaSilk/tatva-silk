@@ -1,32 +1,34 @@
-import Link from 'next/link'
-import Image from 'next/image'
-import { supabase } from '@/lib/supabase'
-import type { Metadata } from 'next'
+// app/products/[id]/page.tsx
+import Link from 'next/link';
+import Image from 'next/image';
+import { supabase } from '@/lib/supabase';
+import type { Metadata } from 'next';
+import AddToCartLite from '@/components/AddToCartLite';
 
-export const revalidate = 30
+export const revalidate = 30;
 
-type ProductImage = { url: string | null; alt: string | null; sort_order: number | null }
+type ProductImage = { url: string | null; alt: string | null; sort_order: number | null };
 
 function formatInr(n: number | null | undefined) {
-  if (typeof n !== 'number') return '—'
-  return `₹${n.toLocaleString('en-IN')}`
+  if (typeof n !== 'number') return '—';
+  return `₹${n.toLocaleString('en-IN')}`;
 }
 function isValidHttpUrl(u?: string | null) {
-  return typeof u === 'string' && /^https?:\/\//i.test(u)
+  return typeof u === 'string' && /^https?:\/\//i.test(u);
 }
 function sortAndFilterImages(images: ProductImage[] = []) {
   return images
     .filter((img) => isValidHttpUrl(img.url))
-    .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
+    .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
 }
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const { data } = await supabase.from('products').select('name').eq('id', params.id).single()
-  return { title: data?.name ? `${data.name} • Tatva Silk` : 'Product • Tatva Silk' }
+  const { data } = await supabase.from('products').select('name').eq('id', params.id).single();
+  return { title: data?.name ? `${data.name} • Tatva Silk` : 'Product • Tatva Silk' };
 }
 
 export default async function ProductDetailPage({ params }: { params: { id: string } }) {
-  const productId = params.id
+  const productId = params.id;
 
   // Try nested select: categories (child) + parent
   const { data, error } = await supabase
@@ -39,6 +41,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
       offer_price,
       stock,
       is_active,
+      category_id,
       categories:category_id (
         slug, label, parent_id,
         parent:parent_id ( slug, label )
@@ -47,31 +50,49 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
     `)
     .eq('id', productId)
     .limit(1)
-    .single()
+    .maybeSingle();
 
-  if (error) {
+  if (error || !data) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
         <Link href="/products">← Back to products</Link>
         <h1 style={{ marginTop: 12 }}>Product</h1>
-        <p style={{ color: 'crimson' }}>Failed to load product: {error.message}</p>
+        <p style={{ color: 'crimson' }}>
+          {error ? `Failed to load product: ${error.message}` : 'Product not found.'}
+        </p>
       </main>
-    )
+    );
   }
 
-  const row: any = data ?? {}
-  const childRel = Array.isArray(row.categories) ? (row.categories[0] ?? null) : (row.categories ?? null)
-  const childLabel: string | null = childRel?.label ?? null
-  const childSlug: string = (childRel?.slug ?? '')?.toLowerCase() || ''
-  const parentRel = Array.isArray(childRel?.parent) ? (childRel?.parent[0] ?? null) : (childRel?.parent ?? null)
-  const parentLabel: string | null = parentRel?.label ?? null
-  const parentSlug: string = (parentRel?.slug ?? '')?.toLowerCase() || ''
+  const row: any = data ?? {};
+  const childRel = Array.isArray(row.categories) ? (row.categories[0] ?? null) : (row.categories ?? null);
+  const childLabel: string | null = childRel?.label ?? null;
+  const childSlug: string = (childRel?.slug ?? '')?.toLowerCase() || '';
 
-  const images: ProductImage[] = sortAndFilterImages((row.product_images ?? []) as ProductImage[])
-  const mainImage = images[0] ?? null
-  const thumbnails = images.slice(1)
+  // parent may be object or array
+  let parentRel = childRel?.parent;
+  if (Array.isArray(parentRel)) parentRel = parentRel[0] ?? null;
+
+  let parentLabel: string | null = parentRel?.label ?? null;
+  let parentSlug: string = (parentRel?.slug ?? '')?.toLowerCase() || '';
+
+  // Fallback: if parent missing but child has parent_id, fetch once
+  if (!parentLabel && childRel?.parent_id) {
+    const { data: pRow } = await supabase
+      .from('categories')
+      .select('label, slug')
+      .eq('id', childRel.parent_id)
+      .maybeSingle();
+
+    parentLabel = pRow?.label ?? null;
+    parentSlug = (pRow?.slug ?? '')?.toLowerCase() || '';
+  }
+
+  const images: ProductImage[] = sortAndFilterImages((row.product_images ?? []) as ProductImage[]);
+  const mainImage = images[0] ?? null;
+  const thumbnails = images.slice(1);
   const effectivePrice =
-    typeof row.offer_price === 'number' ? row.offer_price : (row.original_price as number | null)
+    typeof row.offer_price === 'number' ? row.offer_price : (row.original_price as number | null);
 
   if (!row?.id || row.is_active === false) {
     return (
@@ -80,8 +101,10 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
         <h1 style={{ marginTop: 12 }}>Product not found</h1>
         <p style={{ color: '#666' }}>This product does not exist or is inactive.</p>
       </main>
-    )
+    );
   }
+
+  const buyNowHref = `/checkout?product=${encodeURIComponent(String(row.id))}&qty=1`;
 
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
@@ -210,8 +233,26 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
           {row.description ? (
             <div style={{ marginTop: 16, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{row.description}</div>
           ) : null}
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 16 }}>
+            <AddToCartLite productId={String(row.id)} qty={1} />
+            <Link
+              href={buyNowHref}
+              style={{
+                background: '#f59e0b',
+                color: '#111827',
+                padding: '8px 12px',
+                borderRadius: 8,
+                textDecoration: 'none',
+                fontWeight: 700,
+              }}
+            >
+              Buy Now
+            </Link>
+          </div>
         </div>
       </section>
     </main>
-  )
+  );
 }
