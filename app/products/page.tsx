@@ -52,7 +52,7 @@ function levenshtein(a: string, b: string) {
  * Resolve ?category= to a list of CHILD category IDs to filter by.
  * - If the param is a child → return [childId]
  * - If the param is a parent → return all child IDs under that parent
- * - If fuzzy matches (distance <= 2) → still resolve
+ * - Fuzzy matches (<=2) are accepted
  * - If nothing matches → return []
  */
 async function resolveChildIds(q?: string): Promise<string[]> {
@@ -112,7 +112,7 @@ async function resolveChildIds(q?: string): Promise<string[]> {
     if (childHits?.length) return childHits.map(c => c.id);
   }
 
-  // 4) fuzzy (<= 2) across all categories → prefer child
+  // 4) fuzzy (<= 2) across all categories → prefer child, then parent
   {
     const { data: all } = await supabase
       .from('categories')
@@ -165,6 +165,21 @@ export default async function ProductsPage({
   const childIds = await resolveChildIds(qp);
   const debug = process.env.NEXT_PUBLIC_DEBUG_FILTER === 'true';
 
+  // **EARLY RETURN** when user passed a category but we couldn't resolve to any child IDs.
+  if (qp && childIds.length === 0) {
+    return (
+      <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
+        <Header qp={qp} />
+        {debug && (
+          <Debug info={`childIds=[], search=${qSearch ?? '(none)'}`} />
+        )}
+        <p style={{ color: '#666' }}>
+          No products found in “{qp}”.
+        </p>
+      </main>
+    );
+  }
+
   const baseSelect = `
     id,
     name,
@@ -187,13 +202,8 @@ export default async function ProductsPage({
     .eq('is_active', true)
     .order('created_at', { ascending: false });
 
-  if (qp) {
-    if (childIds.length > 0) {
-      query = query.in('category_id', childIds);
-    } else {
-      // the user passed a category but we could not resolve → empty
-      query = query.eq('id', '___none___');
-    }
+  if (qp && childIds.length > 0) {
+    query = query.in('category_id', childIds);
   }
 
   if (qSearch && qSearch.trim()) {
@@ -208,7 +218,7 @@ export default async function ProductsPage({
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
         <Header qp={qp} />
         {debug && (
-          <Debug info={`childIds=[${childIds.join(', ')}]${qSearch ? ` | search="${qSearch}"` : ''}`} />
+          <Debug info={`ERROR | childIds=[${childIds.join(', ')}] | search=${qSearch ?? '(none)'}`} />
         )}
         <p style={{ color: 'crimson' }}>Failed to load products: {error.message}</p>
       </main>
@@ -221,7 +231,7 @@ export default async function ProductsPage({
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
       <Header qp={qp} />
       {debug && (
-        <Debug info={`childIds=[${childIds.join(', ')}]${qSearch ? ` | search="${qSearch}"` : ''}`} />
+        <Debug info={`childIds=[${childIds.join(', ')}] | search=${qSearch ?? '(none)'}`} />
       )}
 
       {rows.length === 0 ? (
@@ -287,7 +297,7 @@ export default async function ProductsPage({
   );
 }
 
-/* ---------- small helpers ---------- */
+/* ---------- helpers for header + debug ---------- */
 function Header({ qp }: { qp?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
