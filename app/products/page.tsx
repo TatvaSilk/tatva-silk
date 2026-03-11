@@ -44,7 +44,7 @@ function levenshtein(a: string, b: string) {
   return dp[m][n];
 }
 
-/** Robust resolver: exact slug → label contains → child contains → fuzzy (≤2) */
+/** Robustly resolve ?category= to child slug OR list of child IDs (for a parent). */
 async function resolveCategoryFilter(q?: string): Promise<
   | { childSlug: string }
   | { childIds: string[] }
@@ -54,21 +54,21 @@ async function resolveCategoryFilter(q?: string): Promise<
   const needleRaw = (q ?? '').trim().toLowerCase();
   const needle = norm(needleRaw);
 
-  // 1) exact slug
+  // 1) exact slug (parent or child)
   {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('categories')
       .select('id, slug, label, parent_id')
       .eq('slug', needle)
       .maybeSingle();
-    if (data?.id) {
+    if (!error && data?.id) {
       if (data.parent_id) return { childSlug: norm(data.slug) };
       const { data: kids } = await supabase.from('categories').select('id').eq('parent_id', data.id);
       return { childIds: (kids ?? []).map(k => k.id) };
     }
   }
 
-  // 2) label contains
+  // 2) label contains (parent or child)
   {
     const { data } = await supabase
       .from('categories')
@@ -82,7 +82,7 @@ async function resolveCategoryFilter(q?: string): Promise<
     }
   }
 
-  // 3) child contains (slug/label)
+  // 3) child contains (slug OR label)
   {
     const { data: childHits } = await supabase
       .from('categories')
@@ -95,11 +95,14 @@ async function resolveCategoryFilter(q?: string): Promise<
     }
   }
 
-  // 4) fuzzy (≤2)
+  // 4) fuzzy (≤2) — try child first, then parent
   {
-    const { data: all } = await supabase.from('categories').select('id, slug, label, parent_id');
+    const { data: all } = await supabase
+      .from('categories')
+      .select('id, slug, label, parent_id');
     const rows = (all ?? []).map(r => ({ ...r, nSlug: norm(r.slug), nLabel: norm(r.label) }));
 
+    // best child
     let bestChild: any = null, bestChildScore = 1e9;
     for (const r of rows) {
       if (!r.parent_id) continue;
@@ -108,6 +111,7 @@ async function resolveCategoryFilter(q?: string): Promise<
     }
     if (bestChild && bestChildScore <= 2) return { childSlug: bestChild.nSlug };
 
+    // best parent
     let bestParent: any = null, bestParentScore = 1e9;
     for (const r of rows) {
       if (r.parent_id) continue;
@@ -128,9 +132,8 @@ export default async function ProductsPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
-  const qp = (Array.isArray(searchParams?.category)
-    ? searchParams?.category[0]
-    : searchParams?.category) as string | undefined;
+  const qp = (Array.isArray(searchParams?.category) ? searchParams?.category[0] : searchParams?.category) as string | undefined;
+  const qSearch = (Array.isArray(searchParams?.search) ? searchParams?.search[0] : searchParams?.search) as string | undefined;
 
   const filter = await resolveCategoryFilter(qp);
   const debug = process.env.NEXT_PUBLIC_DEBUG_FILTER === 'true';
@@ -143,96 +146,142 @@ export default async function ProductsPage({
       ? `unresolved="${qp}"`
       : 'no category param';
 
-  // If user passed a category we cannot resolve → show empty (not all)
-  if (qp && !filter) {
-    return (
-      <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        <Header qp={qp} />
-        {debug && <Debug info={debugInfo} />}
-        <p style={{ color: '#666' }}>No products found in “{qp}”.</p>
-      </main>
-    );
+  // Helper: build the SELECT list once
+  const baseSelect = `
+    id,
+    name,
+    description,
+    original_price,
+    offer_price,
+    stock,
+    is_active,
+    category_id,
+    category,
+    subcategory,
+    categories:category_id ( slug, label ),
+    product_images ( url, alt, sort_order )
+  `;
+
+  // ---------- STRATEGY ----------
+  // A) If childSlug → try relation INNER JOIN; if zero rows, fallback to subcategory text
+  // B) If parent childIds → filter by category_id IN childIds
+  // C) Apply search to whichever query runs
+
+  let rows: any[] = [];
+  let errorMsg: string | null = null;
+
+  // (C) Helper to apply search on a PostgREST query builder
+  const applySearch = (qb: any) => {
+    if (qSearch && qSearch.trim()) {
+      const term = `%${qSearch.trim()}%`;
+      qb = qb.or(`name.ilike.${term},description.ilike.${term}`);
+    }
+    return qb;
+  };
+
+  try {
+    if (filter && 'childSlug' in filter) {
+      // A1) Inner join on relation
+      let q1 = supabase
+        .from('products')
+        .select(baseSelect)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .filter('categories.slug', 'eq', filter.childSlug) // works with !inner
+        .select(`
+          id,
+          name,
+          description,
+          original_price,
+          offer_price,
+          stock,
+          is_active,
+          category_id,
+          category,
+          subcategory,
+          categories:category_id!inner ( slug, label ),
+          product_images ( url, alt, sort_order )
+        `); // ensure !inner
+
+      q1 = applySearch(q1);
+      const { data: d1, error: e1 } = await q1;
+      if (e1) throw e1;
+      rows = d1 ?? [];
+
+      // A2) Fallback: if relation returned zero, use text column 'subcategory'
+      if (rows.length === 0) {
+        let q2 = supabase
+          .from('products')
+          .select(baseSelect)
+          .eq('is_active', true)
+          .eq('subcategory', filter.childSlug)
+          .order('created_at', { ascending: false });
+        q2 = applySearch(q2);
+        const { data: d2, error: e2 } = await q2;
+        if (e2) throw e2;
+        rows = d2 ?? [];
+      }
+
+    } else if (filter && 'childIds' in filter) {
+      // B) Parent: filter by child IDs
+      let q = supabase
+        .from('products')
+        .select(baseSelect)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if ((filter.childIds ?? []).length > 0) {
+        q = q.in('category_id', filter.childIds);
+      } else {
+        // parent exists but has no children → force empty
+        q = q.eq('id', '___none___');
+      }
+
+      q = applySearch(q);
+      const { data, error } = await q;
+      if (error) throw error;
+      rows = data ?? [];
+
+    } else {
+      // No category param: just search/all
+      let q = supabase
+        .from('products')
+        .select(baseSelect)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      q = applySearch(q);
+      const { data, error } = await q;
+      if (error) throw error;
+      rows = data ?? [];
+    }
+  } catch (e: any) {
+    errorMsg = e?.message ?? 'Query failed';
   }
-
-  // Base query: also select the text fallbacks (category/subcategory)
-  let query = supabase
-    .from('products')
-    .select(
-      `
-      id,
-      name,
-      original_price,
-      offer_price,
-      stock,
-      is_active,
-      category_id,
-      category,
-      subcategory,
-      categories:category_id ( slug, label ),
-      product_images ( url, alt, sort_order )
-    `
-    )
-    .eq('is_active', true);
-
-  if (filter && 'childSlug' in filter) {
-    query = supabase
-      .from('products')
-      .select(
-        `
-        id,
-        name,
-        original_price,
-        offer_price,
-        stock,
-        is_active,
-        category_id,
-        category,
-        subcategory,
-        categories:category_id!inner ( slug, label ),
-        product_images ( url, alt, sort_order )
-      `
-      )
-      .eq('is_active', true)
-      .eq('categories.slug', filter.childSlug);
-  } else if (filter && 'childIds' in filter) {
-    const ids = filter.childIds;
-    if (ids?.length) query = query.in('category_id', ids);
-    else query = query.eq('id', '___none___');
-  }
-
-  query = query.order('created_at', { ascending: false });
-
-  const { data, error } = await query;
-
-  if (error) {
-    return (
-      <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
-        <Header qp={qp} />
-        {debug && <Debug info={debugInfo} />}
-        <p style={{ color: 'crimson' }}>Failed to load products: {error.message}</p>
-      </main>
-    );
-  }
-
-  const rows: any[] = data ?? [];
 
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
       <Header qp={qp} />
-      {debug && <Debug info={debugInfo} />}
 
-      {rows.length === 0 ? (
+      {debug && (
+        <div style={{ background: '#fff7ed', color: '#9a3412', padding: 8, borderRadius: 6, marginBottom: 12 }}>
+          DEBUG: {debugInfo} {qSearch ? `| search="${qSearch}"` : ''}
+        </div>
+      )}
+
+      {errorMsg ? (
+        <p style={{ color: 'crimson' }}>Failed to load products: {errorMsg}</p>
+      ) : rows.length === 0 ? (
         <p style={{ color: '#666' }}>
-          {qp ? `No products found in “${qp}”.` : 'No products found.'}
+          {qp ? `No products found in “${qp}”.` : qSearch ? `No products match “${qSearch}”.` : 'No products found.'}
         </p>
       ) : (
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
           {rows.map((r) => {
-            // Prefer relation → fallback to text columns we just synced
+            // Prefer relation; fallback to text columns
             const rel = Array.isArray(r.categories) ? (r.categories[0] ?? null) : (r.categories ?? null);
             const childLabel = rel?.label ?? (r.subcategory ? String(r.subcategory) : null);
-            const childSlug  = (rel?.slug ?? r.subcategory ?? '')?.toLowerCase() || '';
-            const parentLabel = r.category ? String(r.category).replace(/-/g, ' ') : null; // presentational
+            const childSlug = (rel?.slug ?? r.subcategory ?? '')?.toLowerCase() || '';
+            const parentLabel = r.category ? String(r.category).replace(/-/g, ' ') : null;
 
             const firstImage = pickFirstImage((r.product_images ?? []) as ProductImage[]);
             const price = typeof r.offer_price === 'number' ? r.offer_price : (r.original_price as number | null);
@@ -260,7 +309,9 @@ export default async function ProductsPage({
                     <Link href={`/products?category=${encodeURIComponent(childSlug)}`} className="hover:underline">
                       {String(childLabel).toLowerCase()}
                     </Link>
-                  ) : '(no sub‑category)'}
+                  ) : (
+                    '(no sub‑category)'
+                  )}
                 </div>
 
                 <div style={{ fontWeight: 600 }}>{formatInr(price)}</div>
@@ -279,7 +330,7 @@ export default async function ProductsPage({
   );
 }
 
-/* ---------- Small helpers for header + debug ---------- */
+/* ---------- Small helpers ---------- */
 function Header({ qp }: { qp?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
@@ -292,13 +343,6 @@ function Header({ qp }: { qp?: string }) {
           <Link href="/products">Clear filter</Link>
         </div>
       ) : null}
-    </div>
-  );
-}
-function Debug({ info }: { info: string }) {
-  return (
-    <div style={{ background: '#fff7ed', color: '#9a3412', padding: 8, borderRadius: 6, marginBottom: 12 }}>
-      DEBUG: {info}
     </div>
   );
 }
