@@ -1,18 +1,18 @@
 // components/HeroBanner.tsx
-'use client'
+'use client';
 
-import Image from 'next/image'
-import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image';
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
 
 type Slide = {
-  id: string
-  title: string
-  text: string
-  ctaLabel: string
-  ctaHref: string
-  img: string
-}
+  id: string;
+  title: string;
+  text: string;
+  ctaLabel: string;
+  ctaHref: string;
+  img: string;
+};
 
 const SLIDES: Slide[] = [
   {
@@ -39,33 +39,33 @@ const SLIDES: Slide[] = [
     ctaHref: '/products?category=gifts',
     img: 'https://images.unsplash.com/photo-1622371235100-f7a2c2a19b36?q=80&w=1600&auto=format&fit=crop',
   },
-]
+];
 
 export default function HeroBanner() {
-  const [idx, setIdx] = useState(0)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
-  const total = SLIDES.length
+  const [idx, setIdx] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const total = SLIDES.length;
 
   function go(to: number) {
-    setIdx(((to % total) + total) % total) // wrap safely
+    setIdx(((to % total) + total) % total); // safe wrap
   }
   function next() {
-    go(idx + 1)
+    go(idx + 1);
   }
   function start() {
-    stop()
-    timerRef.current = setInterval(next, 4500)
+    stop();
+    timerRef.current = setInterval(next, 4500);
   }
   function stop() {
-    if (timerRef.current) clearInterval(timerRef.current)
-    timerRef.current = null
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
   }
 
   useEffect(() => {
-    start()
-    return stop
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idx]) // restart timer whenever user clicks a dot
+    start();
+    return stop;
+    // restart interval whenever the user clicks a dot
+  }, [idx]);
 
   return (
     <div className="container" style={{ marginTop: 14, marginBottom: 16 }}>
@@ -75,13 +75,7 @@ export default function HeroBanner() {
         onMouseLeave={start}
         aria-label="Homepage promotions"
       >
-        <div
-          className="hero-inner"
-          style={{
-            position: 'relative',
-            height: 320,
-          }}
-        >
+        <div className="hero-inner" style={{ position: 'relative', height: 320 }}>
           {/* Slides track */}
           <div
             style={{
@@ -100,7 +94,7 @@ export default function HeroBanner() {
                 transition: 'transform .6s ease',
               }}
             >
-              {SLIDES.map((s) => (
+              {SLIDES.map((s, i) => (
                 <div
                   key={s.id}
                   style={{
@@ -115,7 +109,7 @@ export default function HeroBanner() {
                     fill
                     sizes="(max-width: 1024px) 100vw, 1200px"
                     style={{ objectFit: 'cover' }}
-                    priority={s.id === 'one'}
+                    priority={i === 0}
                   />
 
                   {/* Headline panel */}
@@ -133,9 +127,7 @@ export default function HeroBanner() {
                     }}
                   >
                     <h2 style={{ margin: '0 0 6px' }}>{s.title}</h2>
-                    <p style={{ margin: '0 0 10px', color: 'var(--muted)' }}>
-                      {s.text}
-                    </p>
+                    <p style={{ margin: '0 0 10px', color: 'var(--muted)' }}>{s.text}</p>
                     <Link href={s.ctaHref} className="cta">
                       {s.ctaLabel}
                     </Link>
@@ -177,5 +169,5 @@ export default function HeroBanner() {
         </div>
       </div>
     </div>
-  )
+  );
 }
