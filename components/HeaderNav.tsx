@@ -26,7 +26,9 @@ export default function HeaderNav() {
     supabase.auth.getUser().then(({ data }) => {
       if (mounted) setUserEmail(data.user?.email ?? null);
     });
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [supabase]);
 
   function onSearch(e: React.FormEvent) {
@@ -57,7 +59,7 @@ export default function HeaderNav() {
           }}
         >
           {/* LOGO → HOME */}
-          /
+          <Link href="/" aria-label="Tatva Silk – Home" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div
               style={{
                 width: 36,
@@ -82,7 +84,12 @@ export default function HeaderNav() {
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search Tatva Silk"
               aria-label="Search Tatva Silk"
-              style={{ flex: 1, padding: '8px 10px', borderRadius: '6px 0 0 6px', border: 'none' }}
+              style={{
+                flex: 1,
+                padding: '8px 10px',
+                borderRadius: '6px 0 0 6px',
+                border: 'none',
+              }}
             />
             <button
               type="submit"
@@ -140,21 +147,28 @@ export default function HeaderNav() {
                     Sign out
                   </button>
                 ) : (
-                  /accountSign in</Link>
+                  <Link href="/account">Sign in</Link>
                 )}
               </div>
             )}
           </div>
 
           {/* ORDERS */}
-          /orders
+          <Link href="/orders" style={{ fontWeight: 700 }}>
             Orders
           </Link>
 
           {/* CART */}
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('cart:open'))}
-            style={{ position: 'relative', background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 700 }}
+            style={{
+              position: 'relative',
+              background: 'none',
+              border: 'none',
+              color: '#fff',
+              cursor: 'pointer',
+              fontWeight: 700,
+            }}
             aria-label="Open cart"
           >
             🛒 Cart
@@ -175,10 +189,16 @@ export default function HeaderNav() {
           </button>
         </div>
 
-        {/* ====== CATEGORIES BAR ====== */}
+        {/* ====== ONE‑ROW CATEGORIES (parents + child dropdown) ====== */}
         <nav style={{ background: '#232f3e' }}>
           <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 16px' }}>
-            <Suspense fallback={<div style={{ height: 40, color: '#cbd5e1', display: 'flex', alignItems: 'center' }}>Loading…</div>}>
+            <Suspense
+              fallback={
+                <div style={{ height: 40, color: '#cbd5e1', display: 'flex', alignItems: 'center' }}>
+                  Loading…
+                </div>
+              }
+            >
               <OneRowCategoriesNav />
             </Suspense>
           </div>
