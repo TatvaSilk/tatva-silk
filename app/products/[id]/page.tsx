@@ -1,9 +1,7 @@
-// app/products/[id]/page.tsx
 import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import type { Metadata } from 'next'
-import AddToCart from '@/components/AddToCart' // keep your existing AddToCart
 
 export const revalidate = 30
 
@@ -30,6 +28,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 export default async function ProductDetailPage({ params }: { params: { id: string } }) {
   const productId = params.id
 
+  // Try nested select: categories (child) + parent
   const { data, error } = await supabase
     .from('products')
     .select(`
@@ -40,7 +39,10 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
       offer_price,
       stock,
       is_active,
-      categories:category_id ( slug, label ),
+      categories:category_id (
+        slug, label, parent_id,
+        parent:parent_id ( slug, label )
+      ),
       product_images ( url, alt, sort_order )
     `)
     .eq('id', productId)
@@ -58,10 +60,12 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   }
 
   const row: any = data ?? {}
-  // categories can be object or array depending on introspection; normalize
-  const catRel = Array.isArray(row.categories) ? (row.categories[0] ?? null) : (row.categories ?? null)
-  const catLabel: string | null = catRel?.label ?? null
-  const catSlug: string = (catRel?.slug ?? '')?.toLowerCase() || ''
+  const childRel = Array.isArray(row.categories) ? (row.categories[0] ?? null) : (row.categories ?? null)
+  const childLabel: string | null = childRel?.label ?? null
+  const childSlug: string = (childRel?.slug ?? '')?.toLowerCase() || ''
+  const parentRel = Array.isArray(childRel?.parent) ? (childRel?.parent[0] ?? null) : (childRel?.parent ?? null)
+  const parentLabel: string | null = parentRel?.label ?? null
+  const parentSlug: string = (parentRel?.slug ?? '')?.toLowerCase() || ''
 
   const images: ProductImage[] = sortAndFilterImages((row.product_images ?? []) as ProductImage[])
   const mainImage = images[0] ?? null
@@ -79,20 +83,27 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
     )
   }
 
-  // Toggle Buy Now with env var to avoid 404 if you don't have a /checkout route yet
-  const enableBuyNow = process.env.NEXT_PUBLIC_ENABLE_BUY_NOW === 'true'
-  const buyNowHref = `/checkout?product=${encodeURIComponent(String(row.id))}&qty=1`
-
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
+      {/* Breadcrumb: Category / Subcategory */}
       <div style={{ marginBottom: 8, fontSize: 14 }}>
         <Link href="/products">← Back to products</Link>
-        {catSlug ? (
+        {(parentSlug || childSlug) ? (
           <>
             <span style={{ color: '#aaa', margin: '0 8px' }}>/</span>
-            <Link href={`/products?category=${encodeURIComponent(catSlug)}`} className="hover:underline">
-              {(catLabel ?? catSlug).toLowerCase()}
-            </Link>
+            {parentSlug ? (
+              <Link href={`/products?category=${encodeURIComponent(parentSlug)}`} className="hover:underline">
+                {(parentLabel ?? parentSlug).toLowerCase()}
+              </Link>
+            ) : null}
+            {childSlug ? (
+              <>
+                <span style={{ color: '#aaa', margin: '0 8px' }}>/</span>
+                <Link href={`/products?category=${encodeURIComponent(childSlug)}`} className="hover:underline">
+                  {(childLabel ?? childSlug).toLowerCase()}
+                </Link>
+              </>
+            ) : null}
           </>
         ) : null}
       </div>
@@ -175,9 +186,13 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
         {/* Right: details */}
         <div>
           <h1 style={{ margin: '0 0 6px' }}>{row.name ?? 'Untitled'}</h1>
-          {catLabel ? (
-            <div style={{ color: '#777', fontSize: 14, marginBottom: 12 }}>{catLabel.toLowerCase()}</div>
-          ) : null}
+
+          {/* Category / Subcategory line */}
+          <div style={{ color: '#777', fontSize: 14, marginBottom: 12 }}>
+            {parentLabel ? parentLabel.toLowerCase() : null}
+            {parentLabel && childLabel ? ' • ' : null}
+            {childLabel ? childLabel.toLowerCase() : null}
+          </div>
 
           <div style={{ fontSize: 22, fontWeight: 700 }}>
             {formatInr(effectivePrice)}
@@ -195,29 +210,6 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
           {row.description ? (
             <div style={{ marginTop: 16, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{row.description}</div>
           ) : null}
-
-          {/* Actions — single Add to Cart + optional Buy Now */}
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 16 }}>
-            <AddToCart
-              productId={String(row.id)}
-              inStock={(row.stock ?? 0) > 0}
-              variantId={undefined}
-            />
-            {enableBuyNow && (
-              <Link
-                href={buyNowHref}
-                style={{
-                  background: '#f59e0b',
-                  color: '#111827',
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  textDecoration: 'none',
-                }}
-              >
-                Buy Now
-              </Link>
-            )}
-          </div>
         </div>
       </section>
     </main>
