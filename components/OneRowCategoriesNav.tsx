@@ -1,3 +1,4 @@
+// components/OneRowCategoriesNav.tsx
 'use client';
 
 import Link from 'next/link';
@@ -40,7 +41,6 @@ export default function OneRowCategoriesNav({
     return list.slice(0, limitParents);
   }, [parents, limitParents]);
 
-  // which parent is currently active from URL? (if URL has a child, find its parent)
   const activeParentSlug = useMemo(() => {
     if (!urlCat) return '';
     const p = parents.find(x => (x.slug ?? '').toLowerCase() === urlCat);
@@ -52,7 +52,6 @@ export default function OneRowCategoriesNav({
     return '';
   }, [urlCat, parents]);
 
-  // styles
   const parentLinkStyle = (slug: string) =>
     ((slug ?? '').toLowerCase() === activeParentSlug)
       ? { fontWeight: 800, color: '#febd69' }
@@ -76,7 +75,7 @@ export default function OneRowCategoriesNav({
             onMouseLeave={() => setHoverSlug('')}
             style={{ position: 'relative' }}
           >
-            {/* parent link – clicking parent shows all its children on /products */}
+            {/* Parent link → /products?category=<parentSlug> */}
             <Link
               href={`/products?category=${encodeURIComponent(pSlug)}`}
               style={parentLinkStyle(p.slug!)}
@@ -84,7 +83,7 @@ export default function OneRowCategoriesNav({
               {p.label}
             </Link>
 
-            {/* dropdown of children (one row) */}
+            {/* Child dropdown (on hover) */}
             {!!children.length && hoverSlug === pSlug && (
               <div
                 style={{
