@@ -20,11 +20,7 @@ function pickFirstImage(images: ProductImage[] = []) {
   return imgs[0] ?? null
 }
 
-/** Resolve ?category= to a filter:
- * - child slug  => { childSlug }
- * - parent slug => { childIds: [...] }
- * - label (any case) resolves to child or parent
- */
+/** Resolve ?category= to either a child slug or a list of child IDs for a parent */
 async function resolveCategoryFilter(q?: string): Promise<
   | { childSlug: string }
   | { childIds: string[] }
@@ -33,7 +29,7 @@ async function resolveCategoryFilter(q?: string): Promise<
   if (!q) return null
   const needle = q.trim().toLowerCase()
 
-  // 1) try exact slug
+  // 1) exact slug first
   const { data: bySlug } = await supabase
     .from('categories')
     .select('id, slug, parent_id')
@@ -41,17 +37,14 @@ async function resolveCategoryFilter(q?: string): Promise<
     .maybeSingle()
 
   if (bySlug?.slug) {
-    if (bySlug.parent_id) return { childSlug: bySlug.slug }  // child
-    // parent: gather children ids
-    const { data: kids } = await supabase
-      .from('categories')
-      .select('id')
-      .eq('parent_id', bySlug.id)
+    if (bySlug.parent_id) return { childSlug: bySlug.slug } // this is a child
+    // parent: collect child IDs
+    const { data: kids } = await supabase.from('categories').select('id').eq('parent_id', bySlug.id)
     const childIds = (kids ?? []).map(k => k.id)
     return childIds.length ? { childIds } : null
   }
 
-  // 2) fallback: label contains (handles "Kanjivaram" vs "Kanjivam")
+  // 2) fallback on label (contains)
   const { data: byLabel } = await supabase
     .from('categories')
     .select('id, slug, parent_id')
@@ -60,10 +53,7 @@ async function resolveCategoryFilter(q?: string): Promise<
 
   if (byLabel?.slug) {
     if (byLabel.parent_id) return { childSlug: byLabel.slug }
-    const { data: kids } = await supabase
-      .from('categories')
-      .select('id')
-      .eq('parent_id', byLabel.id)
+    const { data: kids } = await supabase.from('categories').select('id').eq('parent_id', byLabel.id)
     const childIds = (kids ?? []).map(k => k.id)
     return childIds.length ? { childIds } : null
   }
@@ -76,17 +66,13 @@ export default async function ProductsPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined }
 }) {
-  const q = (Array.isArray(searchParams?.category)
-    ? searchParams?.category[0]
-    : searchParams?.category) as string | undefined
-
+  const q = (Array.isArray(searchParams?.category) ? searchParams?.category[0] : searchParams?.category) as string | undefined
   const filter = await resolveCategoryFilter(q)
 
-  // Base select with relation for labels
+  // base (with relation for label display)
   let query = supabase
     .from('products')
-    .select(
-      `
+    .select(`
       id,
       name,
       original_price,
@@ -95,16 +81,14 @@ export default async function ProductsPage({
       is_active,
       categories:category_id ( slug, label ),
       product_images ( url, alt, sort_order )
-    `
-    )
+    `)
     .eq('is_active', true)
 
-  // Apply filter
   if (filter && 'childSlug' in filter) {
-    // Use inner join to filter by relation when matching child slug
-    query = query
-      .select(
-        `
+    // child: filter via relation (inner join)
+    query = supabase
+      .from('products')
+      .select(`
         id,
         name,
         original_price,
@@ -113,17 +97,18 @@ export default async function ProductsPage({
         is_active,
         categories:category_id!inner ( slug, label ),
         product_images ( url, alt, sort_order )
-      `
-      )
+      `)
+      .eq('is_active', true)
       .eq('categories.slug', filter.childSlug)
   } else if (filter && 'childIds' in filter && filter.childIds.length) {
-    // Parent: filter directly by product.category_id IN childIds
+    // parent: filter by category_id IN children
     query = query.in('category_id', filter.childIds)
   }
 
   query = query.order('created_at', { ascending: false })
 
   const { data, error } = await query
+
   if (error) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
@@ -160,8 +145,7 @@ export default async function ProductsPage({
             const label: string | null = rel?.label ?? null
             const slug: string = (rel?.slug ?? '')?.toLowerCase() || ''
             const firstImage = pickFirstImage((r.product_images ?? []) as ProductImage[])
-            const effectivePrice =
-              typeof r.offer_price === 'number' ? r.offer_price : (r.original_price as number | null)
+            const effectivePrice = typeof r.offer_price === 'number' ? r.offer_price : (r.original_price as number | null)
 
             return (
               <article key={r.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
