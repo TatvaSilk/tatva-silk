@@ -7,7 +7,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useCartCount } from '@/hooks/useCartCount';
 import CartDrawer from '@/components/CartDrawer';
-import TwoLevelCategoriesNav from '@/components/TwoLevelCategoriesNav';
+import OneRowCategoriesNav from '@/components/OneRowCategoriesNav';
 
 export default function HeaderNav() {
   const router = useRouter();
@@ -26,9 +26,7 @@ export default function HeaderNav() {
     supabase.auth.getUser().then(({ data }) => {
       if (mounted) setUserEmail(data.user?.email ?? null);
     });
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [supabase]);
 
   function onSearch(e: React.FormEvent) {
@@ -44,7 +42,6 @@ export default function HeaderNav() {
 
   return (
     <>
-      {/* ====== MAIN HEADER ====== */}
       <header style={{ background: '#131921', color: '#fff' }}>
         <div
           style={{
@@ -58,8 +55,8 @@ export default function HeaderNav() {
             whiteSpace: 'nowrap',
           }}
         >
-          {/* LOGO → HOME */}
-          <Link href="/" aria-label="Tatva Silk – Home" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Logo → home */}
+          /
             <div
               style={{
                 width: 36,
@@ -77,19 +74,14 @@ export default function HeaderNav() {
             <strong>Tatva Silk</strong>
           </Link>
 
-          {/* SEARCH */}
+          {/* Search */}
           <form onSubmit={onSearch} style={{ display: 'flex', flex: 1, maxWidth: 520 }}>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search Tatva Silk"
               aria-label="Search Tatva Silk"
-              style={{
-                flex: 1,
-                padding: '8px 10px',
-                borderRadius: '6px 0 0 6px',
-                border: 'none',
-              }}
+              style={{ flex: 1, padding: '8px 10px', borderRadius: '6px 0 0 6px', border: 'none' }}
             />
             <button
               type="submit"
@@ -106,7 +98,7 @@ export default function HeaderNav() {
             </button>
           </form>
 
-          {/* ACCOUNT */}
+          {/* Account */}
           <div
             onMouseEnter={() => setMenuOpen(true)}
             onMouseLeave={() => setMenuOpen(false)}
@@ -147,18 +139,16 @@ export default function HeaderNav() {
                     Sign out
                   </button>
                 ) : (
-                  <Link href="/account">Sign in</Link>
+                  /accountSign in</Link>
                 )}
               </div>
             )}
           </div>
 
-          {/* ORDERS */}
-          <Link href="/orders" style={{ fontWeight: 700 }}>
-            Orders
-          </Link>
+          {/* Orders */}
+          /ordersOrders</Link>
 
-          {/* CART */}
+          {/* Cart */}
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('cart:open'))}
             style={{
@@ -189,23 +179,16 @@ export default function HeaderNav() {
           </button>
         </div>
 
-        {/* ====== TWO‑LEVEL CATEGORY BAR (PARENTS + ACTIVE CHILDREN) ====== */}
+        {/* One-row categories with child dropdown */}
         <nav style={{ background: '#232f3e' }}>
-          <div style={{ maxWidth: 1280, margin: '0 auto', display: 'block', padding: '0 16px' }}>
-            <Suspense
-              fallback={
-                <div style={{ height: 40, display: 'flex', alignItems: 'center', color: '#cbd5e1' }}>
-                  Loading categories…
-                </div>
-              }
-            >
-              <TwoLevelCategoriesNav />
+          <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 16px' }}>
+            <Suspense fallback={<div style={{ height: 40, color: '#cbd5e1', display: 'flex', alignItems: 'center' }}>Loading…</div>}>
+              <OneRowCategoriesNav />
             </Suspense>
           </div>
         </nav>
       </header>
 
-      {/* CART DRAWER PORTAL */}
       <CartDrawer />
     </>
   );
