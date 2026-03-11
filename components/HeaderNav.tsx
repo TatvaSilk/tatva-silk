@@ -25,9 +25,7 @@ export default function HeaderNav() {
     supabase.auth.getUser().then(({ data }) => {
       if (mounted) setUserEmail(data.user?.email ?? null);
     });
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [supabase]);
 
   function onSearch(e: React.FormEvent) {
@@ -43,7 +41,7 @@ export default function HeaderNav() {
 
   return (
     <>
-      {/* ====== MAIN HEADER ====== */}
+      {/* MAIN HEADER */}
       <header style={{ background: '#131921', color: '#fff' }}>
         <div
           style={{
@@ -57,8 +55,8 @@ export default function HeaderNav() {
             whiteSpace: 'nowrap',
           }}
         >
-          {/* LOGO */}
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* LOGO → HOME */}
+          <Link href="/" aria-label="Tatva Silk – Home" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div
               style={{
                 width: 36,
@@ -119,16 +117,16 @@ export default function HeaderNav() {
             {menuOpen && (
               <div
                 style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: '100%',
-                  background: '#fff',
-                  color: '#111',
-                  borderRadius: 8,
-                  minWidth: 220,
-                  padding: 12,
-                  zIndex: 9999,
-                  boxShadow: '0 10px 30px rgba(0,0,0,.25)',
+                    position: 'absolute',
+                    right: 0,
+                    top: '100%',
+                    background: '#fff',
+                    color: '#111',
+                    borderRadius: 8,
+                    minWidth: 220,
+                    padding: 12,
+                    zIndex: 9999,
+                    boxShadow: '0 10px 30px rgba(0,0,0,.25)',
                 }}
               >
                 {userEmail ? (
@@ -188,7 +186,7 @@ export default function HeaderNav() {
           </button>
         </div>
 
-        {/* ====== CATEGORY BAR (dynamic) ====== */}
+        {/* CATEGORY BAR (dynamic from DB) */}
         <nav style={{ background: '#232f3e' }}>
           <div
             style={{
@@ -202,16 +200,13 @@ export default function HeaderNav() {
             }}
           >
             <ul style={{ display: 'flex', gap: 18, listStyle: 'none', margin: 0, padding: 0 }}>
-              {/* Renders children (sub‑categories) for the chosen parent.
-                 Change parentSlug if your parent is not "sarees".
-                 Leave it empty to use the first parent from DB. */}
+              {/* Change parentSlug if your top parent is not "sarees" */}
               <PublicCategoriesNavSafe parentSlug="sarees" limit={12} />
             </ul>
           </div>
         </nav>
       </header>
 
-      {/* CART DRAWER */}
       <CartDrawer />
     </>
   );
