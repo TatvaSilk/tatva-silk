@@ -21,58 +21,158 @@ function pickFirstImage(images: ProductImage[] = []) {
     .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
   return imgs[0] ?? null;
 }
+function norm(s?: string | null) {
+  return (s ?? '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/_+/g, '-');
+}
+function levenshtein(a: string, b: string) {
+  // classic DP; OK for short strings (slugs/labels)
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,     // deletion
+        dp[i][j - 1] + 1,     // insertion
+        dp[i - 1][j - 1] + cost // substitution
+      );
+    }
+  }
+  return dp[m][n];
+}
 
-/** Resolve ?category= to:
- *  - { childSlug } when it’s a child (e.g., "kanjivam")
- *  - { childIds } when it’s a parent (e.g., "sarees") — list of all child IDs
- *  - null        when nothing matches (we will show ZERO items)
+/**
+ * Robust resolver:
+ *  - exact slug (parent/child)
+ *  - label contains (case-insensitive)
+ *  - direct child fuzzy match (slug/label) via simple Levenshtein (distance <= 2)
  */
 async function resolveCategoryFilter(q?: string): Promise<
-  | { childSlug: string }
-  | { childIds: string[] }
+  | { childSlug: string }    // exact child by slug or label
+  | { childIds: string[] }   // parent → list of child IDs
   | null
 > {
   if (!q) return null;
-  const needle = q.trim().toLowerCase();
 
-  // 1) exact slug
-  const { data: bySlug } = await supabase
-    .from('categories')
-    .select('id, slug, parent_id')
-    .eq('slug', needle)
-    .maybeSingle();
+  const needleRaw = (q ?? '').trim().toLowerCase();
+  const needle = norm(needleRaw);
 
-  if (bySlug?.slug) {
-    if (bySlug.parent_id) {
-      // child
-      return { childSlug: bySlug.slug };
-    } else {
-      // parent → collect children
-      const { data: kids } = await supabase
-        .from('categories')
-        .select('id')
-        .eq('parent_id', bySlug.id);
-      const childIds = (kids ?? []).map(k => k.id);
-      return { childIds };
+  // 1) Try exact slug (could be parent or child)
+  {
+    const { data: bySlug } = await supabase
+      .from('categories')
+      .select('id, slug, label, parent_id')
+      .eq('slug', needle)
+      .maybeSingle();
+    if (bySlug?.id) {
+      if (bySlug.parent_id) {
+        return { childSlug: norm(bySlug.slug) };
+      } else {
+        const { data: kids } = await supabase
+          .from('categories')
+          .select('id')
+          .eq('parent_id', bySlug.id);
+        const childIds = (kids ?? []).map((k) => k.id);
+        return { childIds };
+      }
     }
   }
 
-  // 2) label contains (handles "Kanjivaram" vs "Kanjivam", case-insensitive)
-  const { data: byLabel } = await supabase
-    .from('categories')
-    .select('id, slug, parent_id')
-    .ilike('label', `%${needle}%`)
-    .maybeSingle();
+  // 2) Try label contains (parent or child)
+  {
+    const { data: byLabel } = await supabase
+      .from('categories')
+      .select('id, slug, label, parent_id')
+      .ilike('label', `%${needleRaw}%`)
+      .maybeSingle();
+    if (byLabel?.id) {
+      if (byLabel.parent_id) {
+        return { childSlug: norm(byLabel.slug) };
+      } else {
+        const { data: kids } = await supabase
+          .from('categories')
+          .select('id')
+          .eq('parent_id', byLabel.id);
+        const childIds = (kids ?? []).map((k) => k.id);
+        return { childIds };
+      }
+    }
+  }
 
-  if (byLabel?.slug) {
-    if (byLabel.parent_id) {
-      return { childSlug: byLabel.slug };
-    } else {
+  // 3) Direct CHILD fallback (slug/label contains)
+  {
+    const { data: childHits } = await supabase
+      .from('categories')
+      .select('id, slug, label, parent_id')
+      .or(`slug.ilike.%${needle}%,label.ilike.%${needleRaw}%`)
+      .not('parent_id', 'is', null); // children only
+
+    if (Array.isArray(childHits) && childHits.length > 0) {
+      if (childHits.length === 1) {
+        return { childSlug: norm(childHits[0].slug) };
+      } else {
+        const childIds = childHits.map((c) => c.id);
+        return { childIds };
+      }
+    }
+  }
+
+  // 4) FUZZY fallback (distance <= 2) against ALL categories (then prefer child)
+  {
+    const { data: all } = await supabase
+      .from('categories')
+      .select('id, slug, label, parent_id');
+
+    const rows = (all ?? []).map((r) => ({
+      ...r,
+      nSlug: norm(r.slug),
+      nLabel: norm(r.label),
+    }));
+
+    // find closest child first
+    let bestChild: any = null;
+    let bestChildScore = Number.POSITIVE_INFINITY;
+    for (const r of rows) {
+      if (!r.parent_id) continue; // child only
+      const s1 = levenshtein(r.nSlug, needle);
+      const s2 = levenshtein(r.nLabel, needle);
+      const s = Math.min(s1, s2);
+      if (s < bestChildScore) {
+        bestChildScore = s;
+        bestChild = r;
+      }
+    }
+    if (bestChild && bestChildScore <= 2) {
+      return { childSlug: bestChild.nSlug };
+    }
+
+    // otherwise try parent
+    let bestParent: any = null;
+    let bestParentScore = Number.POSITIVE_INFINITY;
+    for (const r of rows) {
+      if (r.parent_id) continue; // parent only
+      const s1 = levenshtein(r.nSlug, needle);
+      const s2 = levenshtein(r.nLabel, needle);
+      const s = Math.min(s1, s2);
+      if (s < bestParentScore) {
+        bestParentScore = s;
+        bestParent = r;
+      }
+    }
+    if (bestParent && bestParentScore <= 2) {
       const { data: kids } = await supabase
         .from('categories')
         .select('id')
-        .eq('parent_id', byLabel.id);
-      const childIds = (kids ?? []).map(k => k.id);
+        .eq('parent_id', bestParent.id);
+      const childIds = (kids ?? []).map((k) => k.id);
       return { childIds };
     }
   }
@@ -91,7 +191,7 @@ export default async function ProductsPage({
 
   const filter = await resolveCategoryFilter(qp);
 
-  // Optional debug banner — set NEXT_PUBLIC_DEBUG_FILTER=true in Vercel to show it
+  // Optional debug banner
   const debug = process.env.NEXT_PUBLIC_DEBUG_FILTER === 'true';
   const debugInfo =
     filter && 'childSlug' in filter
@@ -102,8 +202,7 @@ export default async function ProductsPage({
       ? `unresolved param="${qp}"`
       : 'no category param';
 
-  // If a category param was provided but we couldn’t resolve it,
-  // return ZERO items (don’t show everything).
+  // If category param provided but not resolved, show ZERO (avoid showing all)
   if (qp && !filter) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
@@ -130,7 +229,7 @@ export default async function ProductsPage({
     );
   }
 
-  // Build the base query
+  // Base select with relation for label display
   let query = supabase
     .from('products')
     .select(
@@ -148,8 +247,9 @@ export default async function ProductsPage({
     )
     .eq('is_active', true);
 
-  // Apply filter
+  // Apply the resolved filter
   if (filter && 'childSlug' in filter) {
+    // child → filter by relation (inner join)
     query = supabase
       .from('products')
       .select(
@@ -169,11 +269,11 @@ export default async function ProductsPage({
       .eq('categories.slug', filter.childSlug);
   } else if (filter && 'childIds' in filter) {
     const ids = filter.childIds;
-    if (ids.length === 0) {
-      // parent with no children → empty
-      query = query.eq('id', '___no_such_id___');
-    } else {
+    if (Array.isArray(ids) && ids.length > 0) {
       query = query.in('category_id', ids);
+    } else {
+      // parent resolved but has no children → empty result
+      query = query.eq('id', '___none___');
     }
   }
 
