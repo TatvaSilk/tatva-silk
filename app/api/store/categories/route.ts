@@ -20,7 +20,6 @@ function noStoreHeaders() {
 export async function GET() {
   const headers = noStoreHeaders();
 
-  // --- Guardrails for envs (fail fast with explicit message) ---
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -37,10 +36,10 @@ export async function GET() {
     );
   }
 
-  // Create a server-only client with service role
+  // Server-only client with service role (RLS-safe on server)
   const supabase = createClient(url, serviceKey);
 
-  // 1) Fetch parents (parent_id IS NULL)
+  // 1) Parents (top level)
   const { data: parents, error: pErr } = await supabase
     .from('categories')
     .select('id, label, slug')
@@ -62,7 +61,7 @@ export async function GET() {
     return NextResponse.json([], { status: 200, headers });
   }
 
-  // 2) Fetch children for all parents
+  // 2) Children under those parents
   const parentIds = parentRows.map((p) => p.id);
 
   const { data: children, error: cErr } = await supabase
@@ -82,21 +81,22 @@ export async function GET() {
     parent_id: c.parent_id ?? null,
   }));
 
-  // 3) Group children under their parent
+  // 3) Group children under each parent id
   const grouped = new Map<string, Cat[]>();
   parentRows.forEach((p) => grouped.set(p.id, []));
   childRows.forEach((c) => {
-    const list = grouped.get(c.parent_id || '') || [];
+    if (!c.parent_id) return;
+    const list = grouped.get(c.parent_id) ?? [];
     list.push(c);
-    if (c.parent_id) grouped.set(c.parent_id, list);
+    grouped.set(c.parent_id, list);
   });
 
-  // 4) Shape payload: [{ id, label, slug, parent_id: null, children: [...] }]
+  // 4) Shape payload
   const payload = parentRows.map((p) => ({
     id: p.id,
     label: p.label ?? '',
     slug: p.slug ?? '',
-    parent_id: null as const,
+    parent_id: null, // <— plain null (no `as const`)
     children: (grouped.get(p.id) ?? []).map((c) => ({
       id: c.id,
       label: c.label ?? '',
