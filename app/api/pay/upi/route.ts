@@ -1,10 +1,11 @@
+// app/api/pay/upi/route.ts
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
     const { amount, orderId, note } = await req.json();
 
-    // Your merchant UPI VPA + display name
+    // Your merchant VPA + display name (set Vercel env: NEXT_PUBLIC_MERCHANT_VPA)
     const pa = process.env.NEXT_PUBLIC_MERCHANT_VPA || 'tatvasilk@icici';
     const pn = encodeURIComponent('Tatva Silk');
 
@@ -13,28 +14,18 @@ export async function POST(req: Request) {
     const tr = encodeURIComponent(orderId || `TS${Date.now()}`);
     const cu = 'INR';
 
-    // NPCI-compliant UPI deep link
+    // NPCI-compliant deep link
+    // upi://pay?pa=<vpa>&pn=<name>&am=<amount>&tn=<note>&tr=<ref>&cu=INR
     const upiLink = `upi://pay?pa=${pa}&pn=${pn}&am=${am}&tn=${tn}&tr=${tr}&cu=${cu}`;
 
-    let qrSvg: string | null = null;
+    // Prebuilt QR image URL (no server package)
+    // You can swap this to any QR image service later or self-host a tiny QR endpoint.
+    const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(
+      upiLink
+    )}`;
 
-    // Try dynamic import so build doesn't fail if 'qrcode' isn't present
-    try {
-      const QRCode = await import('qrcode'); // ESM default export
-      qrSvg = await QRCode.default.toString(upiLink, {
-        type: 'svg',
-        errorCorrectionLevel: 'M',
-      });
-    } catch {
-      // If the module is missing at build/runtime, we just return null here.
-      qrSvg = null;
-    }
-
-    return NextResponse.json({ upiLink, qrSvg }, { status: 200 });
+    return NextResponse.json({ upiLink, qrImgUrl }, { status: 200 });
   } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message || 'Failed to build UPI link' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: e?.message || 'Failed to build UPI link' }, { status: 400 });
   }
 }
