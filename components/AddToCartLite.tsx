@@ -1,33 +1,28 @@
 // components/AddToCartLite.tsx
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { add, openDrawer } from '@/lib/cart';
 
 export default function AddToCartLite({
   productId,
   qty = 1,
   label = 'Add to Cart',
+  open = 'drawer', // 'drawer' | 'cart' | 'stay'
 }: {
   productId: string;
   qty?: number;
   label?: string;
+  open?: 'drawer' | 'cart' | 'stay';
 }) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
 
-  function add() {
+  function onAdd() {
     try {
       setBusy(true);
-      const raw = localStorage.getItem('cart') || '[]';
-      const cart: { productId: string; qty: number }[] = JSON.parse(raw);
-      const idx = cart.findIndex((x) => x.productId === productId);
-      if (idx >= 0) cart[idx].qty += qty;
-      else cart.push({ productId, qty });
-      localStorage.setItem('cart', JSON.stringify(cart));
-      // Optionally notify your existing drawer
-      window.dispatchEvent(new CustomEvent('cart:add', { detail: { productId, qty } }));
-      router.push('/cart'); // go to cart page
+      add(productId, qty);
+      if (open === 'drawer') openDrawer();
+      else if (open === 'cart') window.location.href = '/cart';
     } finally {
       setBusy(false);
     }
@@ -35,7 +30,7 @@ export default function AddToCartLite({
 
   return (
     <button
-      onClick={add}
+      onClick={onAdd}
       disabled={busy}
       style={{
         background: '#111827',
