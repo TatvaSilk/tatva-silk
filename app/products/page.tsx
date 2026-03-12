@@ -27,17 +27,17 @@ export default async function ProductsPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
-  // Read ?category= from URL
+  // Read ?category= as a CHILD slug (banarasi, kanjivaram, wedding-gown, etc.)
   const qp = (Array.isArray(searchParams?.category)
     ? searchParams?.category[0]
     : searchParams?.category) as string | undefined;
 
-  // Read ?search= from URL (kept working as you want)
+  // Read ?search=
   const qSearch = (Array.isArray(searchParams?.search)
     ? searchParams?.search[0]
     : searchParams?.search) as string | undefined;
 
-  // ---------- STEP 1: strict CHILD slug only ----------
+  // Resolve CHILD slug -> childId
   let childId: string | null = null;
   if (qp && qp.trim()) {
     const slug = qp.trim().toLowerCase();
@@ -47,16 +47,14 @@ export default async function ProductsPage({
       .eq('slug', slug)
       .not('parent_id', 'is', null) // child only
       .maybeSingle();
-
     childId = child?.id ?? null;
   }
 
-  // If a category param was provided but we couldn't resolve a child id -> show empty (don't hit DB with fake UUIDs)
+  // If category was provided but no child found -> show empty (no fake UUIDs)
   if (qp && !childId) {
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
         <Header qp={qp} qSearch={qSearch} />
-        <Debug info={`childId=(none) for slug="${qp}" (child-only step)`} />
         <p style={{ color: '#666' }}>No products found in “{qp}”.</p>
       </main>
     );
@@ -84,12 +82,10 @@ export default async function ProductsPage({
     .eq('is_active', true)
     .order('created_at', { ascending: false });
 
-  // Apply strict child filter if present
   if (childId) {
     query = query.eq('category_id', childId);
   }
 
-  // Apply free-text search (kept as you wanted)
   if (qSearch && qSearch.trim()) {
     const term = `%${qSearch.trim()}%`;
     query = query.or(
@@ -103,7 +99,6 @@ export default async function ProductsPage({
     return (
       <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
         <Header qp={qp} qSearch={qSearch} />
-        <Debug info={`ERROR: ${error.message} | childId=${childId ?? '(none)'}`} />
         <p style={{ color: 'crimson' }}>Failed to load products: {error.message}</p>
       </main>
     );
@@ -114,7 +109,6 @@ export default async function ProductsPage({
   return (
     <main style={{ padding: '40px 24px', maxWidth: 1080, margin: '0 auto' }}>
       <Header qp={qp} qSearch={qSearch} />
-      <Debug info={`childId=${childId ?? '(none)'} (child-only step)`} />
 
       {rows.length === 0 ? (
         <p style={{ color: '#666' }}>
@@ -181,7 +175,7 @@ export default async function ProductsPage({
   );
 }
 
-/* --- tiny helpers (valid JSX) --- */
+/* --- small header helper (valid JSX) --- */
 function Header({ qp, qSearch }: { qp?: string; qSearch?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
@@ -191,23 +185,16 @@ function Header({ qp, qSearch }: { qp?: string; qSearch?: string }) {
           <span>Filtered by: </span>
           <strong style={{ textTransform: 'capitalize' }}>{qp}</strong>
           <span style={{ margin: '0 8px' }}>|</span>
-          <Link href="/products">Clear filter</Link>
+          /productsClear filter</Link>
         </div>
       ) : qSearch ? (
         <div style={{ fontSize: 14, color: '#555' }}>
           <span>Search results for: </span>
           <strong>{qSearch}</strong>
           <span style={{ margin: '0 8px' }}>|</span>
-          <Link href="/products">Clear</Link>
+          /productsClear</Link>
         </div>
       ) : null}
-    </div>
-  );
-}
-function Debug({ info }: { info: string }) {
-  return (
-    <div style={{ background: '#fff7ed', color: '#9a3412', padding: 6, borderRadius: 6, marginBottom: 12, fontSize: 12 }}>
-      DEBUG: {info}
     </div>
   );
 }
