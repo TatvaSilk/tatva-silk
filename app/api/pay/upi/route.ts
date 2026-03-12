@@ -1,0 +1,28 @@
+// app/api/pay/upi/route.ts
+import { NextResponse } from 'next/server';
+import QRCode from 'qrcode';
+
+export async function POST(req: Request) {
+  try {
+    const { amount, orderId, note } = await req.json();
+
+    // TODO: set your merchant VPA + display name
+    const pa = process.env.NEXT_PUBLIC_MERCHANT_VPA || 'tatvasilk@icici';
+    const pn = encodeURIComponent('Tatva Silk');
+    const am = Number(amount || 0).toFixed(2);
+    const tn = encodeURIComponent(note || `Order ${orderId}`);
+    const tr = encodeURIComponent(orderId || `TS${Date.now()}`);
+    const cu = 'INR';
+
+    // UPI deep link format as per NPCI UPI linking spec
+    // upi://pay?pa=<vpa>&pn=<name>&am=<amount>&tn=<note>&tr=<ref>&cu=INR
+    const upiLink = `upi://pay?pa=${pa}&pn=${pn}&am=${am}&tn=${tn}&tr=${tr}&cu=${cu}`;
+
+    // Generate QR (SVG) for the same link
+    const svg = await QRCode.toString(upiLink, { type: 'svg', errorCorrectionLevel: 'M' });
+
+    return NextResponse.json({ upiLink, qrSvg: svg }, { status: 200 });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || 'Failed to build UPI link' }, { status: 400 });
+  }
+}
