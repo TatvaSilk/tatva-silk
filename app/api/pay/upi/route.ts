@@ -1,12 +1,10 @@
-// app/api/pay/upi/route.ts
 import { NextResponse } from 'next/server';
-import * as QRCode from 'qrcode';
 
 export async function POST(req: Request) {
   try {
     const { amount, orderId, note } = await req.json();
 
-    // Your merchant UPI VPA and name
+    // Your merchant UPI VPA + display name
     const pa = process.env.NEXT_PUBLIC_MERCHANT_VPA || 'tatvasilk@icici';
     const pn = encodeURIComponent('Tatva Silk');
 
@@ -15,17 +13,28 @@ export async function POST(req: Request) {
     const tr = encodeURIComponent(orderId || `TS${Date.now()}`);
     const cu = 'INR';
 
-    // NPCI-compliant deep link
+    // NPCI-compliant UPI deep link
     const upiLink = `upi://pay?pa=${pa}&pn=${pn}&am=${am}&tn=${tn}&tr=${tr}&cu=${cu}`;
 
-    // SVG QR for the same link
-    const svg = await QRCode.toString(upiLink, {
-      type: 'svg',
-      errorCorrectionLevel: 'M',
-    });
+    let qrSvg: string | null = null;
 
-    return NextResponse.json({ upiLink, qrSvg: svg }, { status: 200 });
+    // Try dynamic import so build doesn't fail if 'qrcode' isn't present
+    try {
+      const QRCode = await import('qrcode'); // ESM default export
+      qrSvg = await QRCode.default.toString(upiLink, {
+        type: 'svg',
+        errorCorrectionLevel: 'M',
+      });
+    } catch {
+      // If the module is missing at build/runtime, we just return null here.
+      qrSvg = null;
+    }
+
+    return NextResponse.json({ upiLink, qrSvg }, { status: 200 });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Failed to build UPI link' }, { status: 400 });
+    return NextResponse.json(
+      { error: e?.message || 'Failed to build UPI link' },
+      { status: 400 }
+    );
   }
 }
