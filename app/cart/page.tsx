@@ -1,4 +1,3 @@
-// app/cart/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -13,13 +12,23 @@ type Product = {
   offer_price: number | null;
   original_price: number | null;
   product_images: { url: string | null; alt: string | null; sort_order: number | null }[] | null;
-  categories: { label: string | null; slug: string | null } | { label: string | null; slug: string | null }[] | null;
+  categories:
+    | { label: string | null; slug: string | null }
+    | { label: string | null; slug: string | null }[]
+    | null;
+};
+
+type QuoteRes = {
+  subtotal: number;
+  quote: { label: string; amount: number };
+  total: number;
 };
 
 function inr(n: number | null | undefined) {
   if (typeof n !== 'number') return '₹0';
   return `₹${n.toLocaleString('en-IN')}`;
 }
+
 function pickImage(p?: Product | null) {
   const arr = (p?.product_images ?? []) as any[];
   const valid = arr
@@ -31,7 +40,13 @@ function pickImage(p?: Product | null) {
 export default function CartPage() {
   const [lines, setLines] = useState<CartLine[]>([]);
   const [products, setProducts] = useState<Record<string, Product>>({});
-  const [loading, setLoading] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+
+  // Shipping/address + quote
+  const [addr, setAddr] = useState({ country: 'IN', state: '', city: '', pincode: '' });
+  const [pricing, setPricing] = useState<QuoteRes | null>(null);
+  const [loadingQuote, setLoadingQuote] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
 
   const supabase = useMemo(
     () =>
@@ -51,7 +66,7 @@ export default function CartPage() {
       setProducts({});
       return;
     }
-    setLoading(true);
+    setLoadingProducts(true);
     const { data, error } = await supabase
       .from('products')
       .select(`
@@ -68,7 +83,7 @@ export default function CartPage() {
       for (const row of data as any[]) map[row.id] = row;
       setProducts(map);
     }
-    setLoading(false);
+    setLoadingProducts(false);
   }
 
   useEffect(() => {
@@ -78,6 +93,7 @@ export default function CartPage() {
     loadProducts(lines.map((l) => l.productId));
   }, [lines]);
 
+  // Subtotal from fetched product prices
   const subtotal = useMemo(() => {
     let sum = 0;
     for (const l of lines) {
@@ -89,11 +105,50 @@ export default function CartPage() {
     return sum;
   }, [lines, products]);
 
+  // Request shipping quote when lines or address change
+  useEffect(() => {
+    async function quote() {
+      if (!lines.length) {
+        setPricing(null);
+        return;
+      }
+      setLoadingQuote(true);
+      setQuoteError(null);
+      try {
+        // Build a minimal cart for quoting using known prices
+        const cartForQuote = lines.map((l) => {
+          const p = products[l.productId];
+          const price =
+            typeof p?.offer_price === 'number' ? p.offer_price : (p?.original_price as number | null) || 0;
+        return { productId: l.productId, name: p?.name ?? '', price, qty: l.qty };
+        });
+
+        const res = await fetch('/api/shipping/quote', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ cart: cartForQuote, address: addr }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || 'Failed to quote shipping');
+        setPricing(data);
+      } catch (e: any) {
+        setQuoteError(e?.message || 'Failed to quote shipping');
+        setPricing(null);
+      } finally {
+        setLoadingQuote(false);
+      }
+    }
+    quote();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(lines), JSON.stringify(addr), JSON.stringify(products)]);
+
+  const grandTotal = pricing?.total ?? subtotal;
+
   return (
     <main style={{ maxWidth: 1080, margin: '0 auto', padding: '40px 24px' }}>
       <h1 style={{ marginBottom: 8 }}>Cart</h1>
 
-      {loading ? (
+      {loadingProducts ? (
         <p style={{ color: '#6b7280' }}>Loading…</p>
       ) : lines.length === 0 ? (
         <p style={{ color: '#6b7280' }}>
@@ -117,19 +172,54 @@ export default function CartPage() {
                 const childLabel = rel?.label ?? null;
 
                 return (
-                  <li key={l.productId} style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto', gap: 14, border: '1px solid #eee', borderRadius: 10, padding: 12 }}>
-                    <div style={{ width: 96, height: 96, position: 'relative', borderRadius: 10, overflow: 'hidden', background: '#f3f4f6' }}>
+                  <li
+                    key={l.productId}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '96px 1fr auto',
+                      gap: 14,
+                      border: '1px solid #eee',
+                      borderRadius: 10,
+                      padding: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 96,
+                        height: 96,
+                        position: 'relative',
+                        borderRadius: 10,
+                        overflow: 'hidden',
+                        background: '#f3f4f6',
+                      }}
+                    >
                       {img ? (
-                        <Image src={img} alt={p?.name ?? 'Product image'} fill sizes="96px" style={{ objectFit: 'cover' }} />
+                        <Image
+                          src={img}
+                          alt={p?.name ?? 'Product image'}
+                          fill
+                          sizes="96px"
+                          style={{ objectFit: 'cover' }}
+                        />
                       ) : null}
                     </div>
                     <div>
                       <div style={{ fontWeight: 600, lineHeight: 1.3 }}>
                         <Link href={`/products/${l.productId}`}>{p?.name ?? `Product #${l.productId}`}</Link>
                       </div>
-                      <div style={{ fontSize: 12, color: '#6b7280' }}>{childLabel ? childLabel.toLowerCase() : ''}</div>
+                      <div style={{ fontSize: 12, color: '#6b7280' }}>
+                        {childLabel ? childLabel.toLowerCase() : ''}
+                      </div>
 
-                      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 10 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: 12,
+                          alignItems: 'center',
+                          marginTop: 10,
+                          flexWrap: 'wrap',
+                        }}
+                      >
                         <label style={{ fontSize: 12, color: '#6b7280' }}>Qty:</label>
                         <select
                           value={l.qty}
@@ -151,7 +241,13 @@ export default function CartPage() {
                             remove(l.productId);
                             refreshLines();
                           }}
-                          style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 12 }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#dc2626',
+                            cursor: 'pointer',
+                            fontSize: 12,
+                          }}
                         >
                           Remove
                         </button>
@@ -164,15 +260,71 @@ export default function CartPage() {
             </ul>
           </section>
 
-          {/* Right: summary */}
+          {/* Right: summary with shipping */}
           <aside style={{ border: '1px solid #eee', borderRadius: 10, padding: 12, height: 'fit-content' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-              <strong>Subtotal</strong>
-              <strong>{inr(subtotal)}</strong>
+            <h3 style={{ marginTop: 0 }}>Shipping</h3>
+
+            {/* Address inputs to drive quote */}
+            <div style={{ display: 'grid', gap: 8 }}>
+              <input
+                placeholder="Country (e.g., IN)"
+                value={addr.country}
+                onChange={(e) => setAddr({ ...addr, country: e.target.value })}
+              />
+              <input
+                placeholder="State"
+                value={addr.state}
+                onChange={(e) => setAddr({ ...addr, state: e.target.value })}
+              />
+              <input
+                placeholder="City"
+                value={addr.city}
+                onChange={(e) => setAddr({ ...addr, city: e.target.value })}
+              />
+              <input
+                placeholder="Pincode"
+                value={addr.pincode}
+                onChange={(e) => setAddr({ ...addr, pincode: e.target.value })}
+              />
             </div>
+
+            {/* Totals */}
+            <div style={{ marginTop: 12, display: 'grid', gap: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Subtotal</span>
+                <strong>{inr(pricing?.subtotal ?? subtotal)}</strong>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>{pricing?.quote?.label || 'Shipping'}</span>
+                <strong>{inr(pricing?.quote?.amount ?? 0)}</strong>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Total</span>
+                <strong>{inr(grandTotal)}</strong>
+              </div>
+
+              {loadingQuote ? (
+                <div style={{ color: '#6b7280', fontSize: 12 }}>Updating shipping…</div>
+              ) : quoteError ? (
+                <div style={{ color: 'crimson', fontSize: 12 }}>{quoteError}</div>
+              ) : null}
+            </div>
+
             <button
               onClick={() => (window.location.href = '/checkout')}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: 'none', background: '#f59e0b', color: '#111827', fontWeight: 700, cursor: 'pointer' }}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: 'none',
+                background: '#f59e0b',
+                color: '#111827',
+                fontWeight: 700,
+                cursor: 'pointer',
+                marginTop: 10,
+              }}
             >
               Proceed to Checkout
             </button>
@@ -181,7 +333,15 @@ export default function CartPage() {
                 clear();
                 refreshLines();
               }}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', marginTop: 8 }}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: '1px solid #e5e7eb',
+                background: '#fff',
+                cursor: 'pointer',
+                marginTop: 8,
+              }}
             >
               Clear cart
             </button>
