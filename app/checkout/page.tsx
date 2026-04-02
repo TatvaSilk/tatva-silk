@@ -1,213 +1,174 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
-import Image from 'next/image'
-import { createClient } from '@supabase/supabase-js'
-import { CartLine, getCart } from '@/lib/cart'
+import { getCart, CartLine } from '@/lib/cart'
 
-type Product = {
-  id: string
-  name: string | null
-  offer_price: number | null
-  original_price: number | null
-  product_images:
-    | { url: string | null; alt: string | null; sort_order: number | null }[]
-    | null
-}
+const COD_FEE = 0
 
-type QuoteRes = {
-  subtotal: number
-  quote: { label: string; amount: number }
-  total: number
-}
-
-type PayResp = { upiLink: string; qrImgUrl: string }
-
-const COD_FEE = 0 // change to 50 if you want COD charge
-
-function inr(n: number | null | undefined) {
-  if (typeof n !== 'number') return '₹0'
+function inr(n: number) {
   return `₹${n.toLocaleString('en-IN')}`
-}
-
-function pickImage(p?: Product | null) {
-  const arr = p?.product_images ?? []
-  const valid = arr
-    .filter((x) => typeof x?.url === 'string' && /^https?:\/\//i.test(x.url))
-    .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
-  return valid[0]?.url ?? null
 }
 
 export default function CheckoutPage() {
   const [cart, setCart] = useState<CartLine[]>([])
-  const [products, setProducts] = useState<Record<string, Product>>({})
-  const [pricing, setPricing] = useState<QuoteRes | null>(null)
+
+  // Customer details
+  const [customer, setCustomer] = useState({
+    name: '',
+    phone: '',
+    email: '',
+  })
 
   // Address
-  const [addr, setAddr] = useState({ country: 'IN', state: '', city: '', pincode: '' })
-  const [shipAddr, setShipAddr] = useState({ line1: '', line2: '' })
-
-  // Customer
-  const [customer, setCustomer] = useState({ name: '', phone: '', email: '' })
+  const [address, setAddress] = useState({
+    line1: '',
+    line2: '',
+    city: '',
+    state: '',
+    pincode: '',
+    country: 'IN',
+  })
 
   // Payment
-  const [payMethod, setPayMethod] = useState<'UPI' | 'COD'>('UPI')
-  const [upi, setUpi] = useState<PayResp | null>(null)
+  const [payMethod, setPayMethod] = useState<'UPI' | 'COD'>('COD')
   const [utr, setUtr] = useState('')
-  const [vpa, setVpa] = useState('')
-  const [note, setNote] = useState('')
-  const [err, setErr] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const orderId = useMemo(() => `TS-${Date.now()}`, [])
-  const supabase = useMemo(
-    () => createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    ),
-    []
-  )
-
-  // Load cart
   useEffect(() => {
     setCart(getCart())
   }, [])
 
-  // Load products
-  useEffect(() => {
-    async function load(ids: string[]) {
-      if (!ids.length) return
-      const { data } = await supabase
-        .from('products')
-        .select('id,name,original_price,offer_price,product_images(url,alt,sort_order)')
-        .in('id', ids)
-      const map: Record<string, Product> = {}
-      data?.forEach((p: any) => (map[p.id] = p))
-      setProducts(map)
-    }
-    load(cart.map((c) => c.productId))
-  }, [cart, supabase])
-
   const subtotal = useMemo(() => {
-    return cart.reduce((sum, l) => {
-      const p = products[l.productId]
-      const price = p?.offer_price ?? p?.original_price ?? 0
-      return sum + price * l.qty
-    }, 0)
-  }, [cart, products])
+    return cart.reduce((sum, l) => sum + l.price * l.qty, 0)
+  }, [cart])
 
   const total = subtotal + (payMethod === 'COD' ? COD_FEE : 0)
 
-  // Create UPI when needed
-  useEffect(() => {
-    if (payMethod !== 'UPI' || total <= 0) return
-    ;(async () => {
-      const res = await fetch('/api/pay/upi', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ amount: total, orderId }),
-      })
-      if (res.ok) setUpi(await res.json())
-    })()
-  }, [payMethod, total, orderId])
-
   async function placeOrder() {
-    try {
-      setErr(null)
+    setError(null)
 
-      if (!customer.name || !customer.phone) {
-        return setErr('Please enter name and phone')
-      }
-
-      if (payMethod === 'UPI' && !utr.trim()) {
-        return setErr('Please enter UPI Reference (UTR)')
-      }
-
-      const items = cart.map((l) => {
-        const p = products[l.productId]
-        const price = p?.offer_price ?? p?.original_price ?? 0
-        return { productId: l.productId, name: p?.name, price, qty: l.qty }
-      })
-
-      const res = await fetch('/api/orders/create', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          items,
-          amount: total,
-          payment_method: payMethod,
-          payment_status: payMethod === 'COD' ? 'cod_pending' : 'paid',
-          customer,
-          address: { ...shipAddr, ...addr },
-          upi:
-            payMethod === 'UPI'
-              ? { utr: utr.trim(), vpa: vpa || null, note: note || null }
-              : null,
-        }),
-      })
-
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'Order failed')
-
-      localStorage.setItem('cart', '[]')
-      window.location.href = `/thank-you?order=${encodeURIComponent(data.orderNo)}`
-    } catch (e: any) {
-      setErr(e.message)
+    if (!customer.name || !customer.phone) {
+      setError('Please enter name and phone number')
+      return
     }
+
+    if (!address.line1 || !address.city || !address.state || !address.pincode) {
+      setError('Please complete delivery address')
+      return
+    }
+
+    if (payMethod === 'UPI' && !utr.trim()) {
+      setError('Please enter UPI reference (UTR)')
+      return
+    }
+
+    const res = await fetch('/api/orders/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        items: cart,
+        amount: total,
+        payment_method: payMethod,
+        payment_status: payMethod === 'COD' ? 'cod_pending' : 'paid',
+        customer,
+        address,
+        upi: payMethod === 'UPI' ? { utr } : null,
+      }),
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      setError(data?.error || 'Order failed')
+      return
+    }
+
+    localStorage.setItem('cart', '[]')
+    window.location.href = `/thank-you?order=${data.orderNo}`
   }
 
   return (
-    <main style={{ maxWidth: 980, margin: '0 auto', padding: '40px 24px' }}>
+    <main style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px' }}>
       <h1>Checkout</h1>
 
-      {/* PAYMENT METHOD */}
-      <h3>Payment Method</h3>
+      {/* CUSTOMER */}
+      <h3>Customer Details</h3>
+      <div style={{ display: 'grid', gap: 8 }}>
+        <input placeholder="Full Name" value={customer.name}
+          onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
+        <input placeholder="Phone Number" value={customer.phone}
+          onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
+        <input placeholder="Email (optional)" value={customer.email}
+          onChange={(e) => setCustomer({ ...customer, email: e.target.value })} />
+      </div>
+
+      {/* ADDRESS */}
+      <h3 style={{ marginTop: 20 }}>Delivery Address</h3>
+      <div style={{ display: 'grid', gap: 8 }}>
+        <input placeholder="Address Line 1"
+          value={address.line1}
+          onChange={(e) => setAddress({ ...address, line1: e.target.value })} />
+
+        <input placeholder="Address Line 2 (optional)"
+          value={address.line2}
+          onChange={(e) => setAddress({ ...address, line2: e.target.value })} />
+
+        <input placeholder="City"
+          value={address.city}
+          onChange={(e) => setAddress({ ...address, city: e.target.value })} />
+
+        <input placeholder="State"
+          value={address.state}
+          onChange={(e) => setAddress({ ...address, state: e.target.value })} />
+
+        <input placeholder="Pincode"
+          value={address.pincode}
+          onChange={(e) => setAddress({ ...address, pincode: e.target.value })} />
+      </div>
+
+      {/* PAYMENT */}
+      <h3 style={{ marginTop: 20 }}>Payment Method</h3>
+
       <label>
         <input
           type="radio"
           checked={payMethod === 'UPI'}
           onChange={() => setPayMethod('UPI')}
-        />{' '}
-        Pay by UPI
+        /> Pay by UPI
       </label>
+
       <br />
+
       <label>
         <input
           type="radio"
           checked={payMethod === 'COD'}
           onChange={() => setPayMethod('COD')}
-        />{' '}
-        Cash on Delivery {COD_FEE > 0 ? `(₹${COD_FEE})` : ''}
+        /> Cash on Delivery {COD_FEE > 0 ? `(₹${COD_FEE})` : ''}
       </label>
 
-      {/* UPI SECTION */}
-      {payMethod === 'UPI' && upi && (
-        <>
-          <h3 style={{ marginTop: 20 }}>Pay ₹{inr(total)}</h3>
-          <img src={upi.qrImgUrl} width={220} alt="UPI QR" />
-          <a href={upi.upiLink} target="_blank">Open UPI App</a>
-          <input placeholder="UTR" value={utr} onChange={(e) => setUtr(e.target.value)} />
-        </>
+      {payMethod === 'UPI' && (
+        <input
+          placeholder="Enter UPI Reference (UTR)"
+          value={utr}
+          onChange={(e) => setUtr(e.target.value)}
+          style={{ marginTop: 10 }}
+        />
       )}
 
-      {/* COD INFO */}
-      {payMethod === 'COD' && (
-        <p style={{ marginTop: 12, color: '#065f46' }}>
-          You will pay ₹{inr(total)} in cash at the time of delivery.
-        </p>
-      )}
+      <h3 style={{ marginTop: 20 }}>Order Total: {inr(total)}</h3>
 
-      {err && <p style={{ color: 'crimson' }}>{err}</p>}
+      {error && <p style={{ color: 'crimson' }}>{error}</p>}
 
       <button
         onClick={placeOrder}
         style={{
-          marginTop: 20,
-          background: '#f59e0b',
+          marginTop: 16,
           padding: '12px 16px',
+          background: '#f59e0b',
           border: 'none',
           borderRadius: 8,
           fontWeight: 700,
+          cursor: 'pointer',
         }}
       >
         Place Order
