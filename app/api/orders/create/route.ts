@@ -20,38 +20,53 @@ export async function POST(req: Request) {
       )
     }
 
-    if (!customer?.name || !customer?.phone) {
-      return NextResponse.json(
-        { error: 'Customer details missing' },
-        { status: 400 }
-      )
-    }
-
-    if (!address?.line1 || !address?.city || !address?.state || !address?.pincode) {
-      return NextResponse.json(
-        { error: 'Delivery address incomplete' },
-        { status: 400 }
-      )
-    }
-
-    const supabase = createClient(
+    // ✅ Service-role client (bypasses RLS)
+    const admin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY! // REQUIRED
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
+
+    // ✅ User-scoped client (who placed the order)
+    const userClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        auth: {
+          persistSession: false,
+        },
+      }
+    )
+
+    // ✅ Get logged-in user from request cookies
+    const { data: { user }, error: userErr } =
+      await userClient.auth.getUser()
+
+    if (userErr || !user) {
+      return NextResponse.json(
+        { error: 'User not authenticated' },
+        { status: 401 }
+      )
+    }
 
     const orderNo = `TS-${Date.now()}`
 
-    const { data, error } = await supabase
+    const { data, error } = await admin
       .from('orders')
       .insert({
         order_no: orderNo,
+
+        // ✅ THIS IS THE CRITICAL FIX
+        customer_id: user.id,
+
         items_count: items.length,
         subtotal: amount,
         delivery_fee: 0,
         discount: 0,
         grand_total: amount,
+
         payment_status: payment_status ?? 'unpaid',
-        status: 'placed', // matches order_status enum default
+        status: 'placed',
+
         shipping_name: customer.name,
         shipping_phone: customer.phone,
         shipping_address_line1: address.line1,
@@ -64,7 +79,7 @@ export async function POST(req: Request) {
       .single()
 
     if (error) {
-      console.error('Order insert error:', error)
+      console.error(error)
       return NextResponse.json(
         { error: error.message },
         { status: 500 }
@@ -76,11 +91,10 @@ export async function POST(req: Request) {
       orderNo: data.order_no,
     })
   } catch (e: any) {
-    console.error('Create order crash:', e)
+    console.error(e)
     return NextResponse.json(
       { error: e.message || 'Server error' },
       { status: 500 }
     )
   }
 }
-``
