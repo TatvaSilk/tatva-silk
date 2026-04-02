@@ -1,7 +1,15 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { createClient } from '@supabase/supabase-js'
 import { getCart, CartLine } from '@/lib/cart'
+
+type Product = {
+  id: string
+  name: string | null
+  offer_price: number | null
+  original_price: number | null
+}
 
 const COD_FEE = 0
 
@@ -10,9 +18,16 @@ function inr(n: number) {
 }
 
 export default function CheckoutPage() {
-  const [cart, setCart] = useState<CartLine[]>([])
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
-  // Customer details
+  // Cart
+  const [cart, setCart] = useState<CartLine[]>([])
+  const [products, setProducts] = useState<Record<string, Product>>({})
+
+  // Customer
   const [customer, setCustomer] = useState({
     name: '',
     phone: '',
@@ -34,13 +49,42 @@ export default function CheckoutPage() {
   const [utr, setUtr] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  // Load cart from local storage
   useEffect(() => {
     setCart(getCart())
   }, [])
 
+  // Load products for pricing
+  useEffect(() => {
+    async function loadProducts(ids: string[]) {
+      if (!ids.length) return
+
+      const { data } = await supabase
+        .from('products')
+        .select('id,name,offer_price,original_price')
+        .in('id', ids)
+
+      const map: Record<string, Product> = {}
+      data?.forEach((p: any) => {
+        map[p.id] = p
+      })
+      setProducts(map)
+    }
+
+    loadProducts(cart.map((l) => l.productId))
+  }, [cart, supabase])
+
+  // ✅ FIXED SUBTOTAL (NO l.price)
   const subtotal = useMemo(() => {
-    return cart.reduce((sum, l) => sum + l.price * l.qty, 0)
-  }, [cart])
+    return cart.reduce((sum, l) => {
+      const p = products[l.productId]
+      const price =
+        typeof p?.offer_price === 'number'
+          ? p.offer_price
+          : p?.original_price ?? 0
+      return sum + price * l.qty
+    }, 0)
+  }, [cart, products])
 
   const total = subtotal + (payMethod === 'COD' ? COD_FEE : 0)
 
@@ -62,11 +106,25 @@ export default function CheckoutPage() {
       return
     }
 
+    const items = cart.map((l) => {
+      const p = products[l.productId]
+      const price =
+        typeof p?.offer_price === 'number'
+          ? p.offer_price
+          : p?.original_price ?? 0
+      return {
+        productId: l.productId,
+        name: p?.name,
+        price,
+        qty: l.qty,
+      }
+    })
+
     const res = await fetch('/api/orders/create', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        items: cart,
+        items,
         amount: total,
         payment_method: payMethod,
         payment_status: payMethod === 'COD' ? 'cod_pending' : 'paid',
@@ -93,36 +151,51 @@ export default function CheckoutPage() {
       {/* CUSTOMER */}
       <h3>Customer Details</h3>
       <div style={{ display: 'grid', gap: 8 }}>
-        <input placeholder="Full Name" value={customer.name}
-          onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
-        <input placeholder="Phone Number" value={customer.phone}
-          onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
-        <input placeholder="Email (optional)" value={customer.email}
-          onChange={(e) => setCustomer({ ...customer, email: e.target.value })} />
+        <input
+          placeholder="Full Name"
+          value={customer.name}
+          onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
+        />
+        <input
+          placeholder="Phone Number"
+          value={customer.phone}
+          onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
+        />
+        <input
+          placeholder="Email (optional)"
+          value={customer.email}
+          onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
+        />
       </div>
 
       {/* ADDRESS */}
       <h3 style={{ marginTop: 20 }}>Delivery Address</h3>
       <div style={{ display: 'grid', gap: 8 }}>
-        <input placeholder="Address Line 1"
+        <input
+          placeholder="Address Line 1"
           value={address.line1}
-          onChange={(e) => setAddress({ ...address, line1: e.target.value })} />
-
-        <input placeholder="Address Line 2 (optional)"
+          onChange={(e) => setAddress({ ...address, line1: e.target.value })}
+        />
+        <input
+          placeholder="Address Line 2 (optional)"
           value={address.line2}
-          onChange={(e) => setAddress({ ...address, line2: e.target.value })} />
-
-        <input placeholder="City"
+          onChange={(e) => setAddress({ ...address, line2: e.target.value })}
+        />
+        <input
+          placeholder="City"
           value={address.city}
-          onChange={(e) => setAddress({ ...address, city: e.target.value })} />
-
-        <input placeholder="State"
+          onChange={(e) => setAddress({ ...address, city: e.target.value })}
+        />
+        <input
+          placeholder="State"
           value={address.state}
-          onChange={(e) => setAddress({ ...address, state: e.target.value })} />
-
-        <input placeholder="Pincode"
+          onChange={(e) => setAddress({ ...address, state: e.target.value })}
+        />
+        <input
+          placeholder="Pincode"
           value={address.pincode}
-          onChange={(e) => setAddress({ ...address, pincode: e.target.value })} />
+          onChange={(e) => setAddress({ ...address, pincode: e.target.value })}
+        />
       </div>
 
       {/* PAYMENT */}
@@ -155,7 +228,9 @@ export default function CheckoutPage() {
         />
       )}
 
-      <h3 style={{ marginTop: 20 }}>Order Total: {inr(total)}</h3>
+      <h3 style={{ marginTop: 20 }}>
+        Order Total: {inr(total)}
+      </h3>
 
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
 
