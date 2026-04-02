@@ -18,28 +18,24 @@ function inr(n: number) {
 }
 
 export default function CheckoutPage() {
-  // Supabase client
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  // Auth state
+  // ✅ auth
   const [userId, setUserId] = useState<string | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
 
-  // Cart & products
+  // ✅ cart safety
   const [cart, setCart] = useState<CartLine[]>([])
+  const [cartReady, setCartReady] = useState(false)
+
+  // ✅ products
   const [products, setProducts] = useState<Record<string, Product>>({})
 
-  // Customer details
-  const [customer, setCustomer] = useState({
-    name: '',
-    phone: '',
-    email: '',
-  })
-
-  // Shipping address
+  // ✅ form state
+  const [customer, setCustomer] = useState({ name: '', phone: '', email: '' })
   const [address, setAddress] = useState({
     line1: '',
     line2: '',
@@ -49,219 +45,177 @@ export default function CheckoutPage() {
     country: 'IN',
   })
 
-  // Payment
   const [payMethod, setPayMethod] = useState<'COD' | 'UPI'>('COD')
   const [utr, setUtr] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  // ✅ Step 1: Ensure user is logged in
+  /* ---------------- AUTH CHECK ---------------- */
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) {
-        // Not logged in → redirect to account page
         window.location.href = '/account'
         return
       }
       setUserId(data.user.id)
       setAuthChecked(true)
+    }).catch((e) => {
+      console.error('Auth error', e)
+      setError('Authentication error')
     })
   }, [supabase])
 
-  // Show loader until auth check completes
-  if (!authChecked) {
-    return <p style={{ padding: 40 }}>Checking login…</p>
-  }
-
-  // ✅ Step 2: Load cart
+  /* ---------------- LOAD CART (SAFE) ---------------- */
   useEffect(() => {
-    setCart(getCart())
+    try {
+      const c = getCart()
+      setCart(Array.isArray(c) ? c : [])
+    } catch (e) {
+      console.error('Cart error', e)
+      setCart([])
+      setError('Cart data corrupted. Please add products again.')
+    } finally {
+      setCartReady(true)
+    }
   }, [])
 
-  // ✅ Step 3: Load product prices
+  /* ---------------- LOAD PRODUCTS ---------------- */
   useEffect(() => {
-    async function loadProducts(ids: string[]) {
-      if (!ids.length) return
+    async function loadProducts() {
+      if (!cart.length) return
+      try {
+        const ids = cart.map((l) => l.productId)
+        const { data, error } = await supabase
+          .from('products')
+          .select('id,name,offer_price,original_price')
+          .in('id', ids)
 
-      const { data } = await supabase
-        .from('products')
-        .select('id,name,offer_price,original_price')
-        .in('id', ids)
-
-      const map: Record<string, Product> = {}
-      data?.forEach((p: any) => {
-        map[p.id] = p
-      })
-      setProducts(map)
+        if (error) throw error
+        const map: Record<string, Product> = {}
+        data?.forEach((p: any) => (map[p.id] = p))
+        setProducts(map)
+      } catch (e) {
+        console.error('Product load error', e)
+        setError('Failed to load products')
+      }
     }
-
-    loadProducts(cart.map((l) => l.productId))
+    loadProducts()
   }, [cart, supabase])
 
-  // ✅ Step 4: Calculate subtotal
+  /* ---------------- TOTAL (SAFE) ---------------- */
   const subtotal = useMemo(() => {
+    if (!cart.length) return 0
     return cart.reduce((sum, l) => {
       const p = products[l.productId]
+      if (!p) return sum
       const price =
-        typeof p?.offer_price === 'number'
+        typeof p.offer_price === 'number'
           ? p.offer_price
-          : p?.original_price ?? 0
+          : p.original_price ?? 0
       return sum + price * l.qty
     }, 0)
   }, [cart, products])
 
   const total = subtotal + (payMethod === 'COD' ? COD_FEE : 0)
 
-  // ✅ Step 5: Place order
+  /* ---------------- PLACE ORDER ---------------- */
   async function placeOrder() {
     setError(null)
 
-    if (!userId) {
-      setError('Please login again')
-      return
-    }
+    if (!userId) return setError('Please login again')
+    if (!cart.length) return setError('Cart is empty')
 
     if (!customer.name || !customer.phone) {
-      setError('Please enter name and phone number')
-      return
+      return setError('Enter name and phone')
     }
 
     if (!address.line1 || !address.city || !address.state || !address.pincode) {
-      setError('Please complete delivery address')
-      return
+      return setError('Complete delivery address')
     }
 
     if (payMethod === 'UPI' && !utr.trim()) {
-      setError('Please enter UPI reference (UTR)')
-      return
+      return setError('Enter UPI reference')
     }
 
-    if (cart.length === 0) {
-      setError('Your cart is empty')
-      return
+    try {
+      const res = await fetch('/api/orders/create', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          customer_id: userId,
+          items: cart,
+          amount: total,
+          payment_status: payMethod === 'COD' ? 'cod_pending' : 'paid',
+          customer,
+          address,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data?.error || 'Order failed')
+        return
+      }
+
+      localStorage.setItem('cart', '[]')
+      window.location.href = `/thank-you?order=${data.orderNo}`
+    } catch (e) {
+      console.error('Order crash', e)
+      setError('Order failed. Please try again.')
     }
-
-    const items = cart.map((l) => ({
-      productId: l.productId,
-      qty: l.qty,
-    }))
-
-    const res = await fetch('/api/orders/create', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        customer_id: userId,
-        items,
-        amount: total,
-        payment_status: payMethod === 'COD' ? 'cod_pending' : 'paid',
-        customer,
-        address,
-      }),
-    })
-
-    const data = await res.json()
-
-    if (!res.ok) {
-      setError(data?.error || 'Order failed')
-      return
-    }
-
-    // Clear cart and redirect
-    localStorage.setItem('cart', '[]')
-    window.location.href = `/thank-you?order=${data.orderNo}`
   }
 
-  // ✅ UI
+  /* ---------------- LOADING GUARD ---------------- */
+  if (!authChecked || !cartReady) {
+    return <p style={{ padding: 40 }}>Loading checkout…</p>
+  }
+
+  /* ---------------- UI ---------------- */
   return (
     <main style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px' }}>
       <h1>Checkout</h1>
 
       <h3>Customer Details</h3>
-      <input
-        placeholder="Full Name"
-        value={customer.name}
-        onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
-      />
-      <input
-        placeholder="Phone"
-        value={customer.phone}
-        onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
-      />
-      <input
-        placeholder="Email (optional)"
-        value={customer.email}
-        onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
-      />
+      <input value={customer.name} placeholder="Name"
+        onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
+      <input value={customer.phone} placeholder="Phone"
+        onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
+      <input value={customer.email} placeholder="Email"
+        onChange={(e) => setCustomer({ ...customer, email: e.target.value })} />
 
       <h3>Delivery Address</h3>
-      <input
-        placeholder="Address line 1"
-        value={address.line1}
-        onChange={(e) => setAddress({ ...address, line1: e.target.value })}
-      />
-      <input
-        placeholder="Address line 2"
-        value={address.line2}
-        onChange={(e) => setAddress({ ...address, line2: e.target.value })}
-      />
-      <input
-        placeholder="City"
-        value={address.city}
-        onChange={(e) => setAddress({ ...address, city: e.target.value })}
-      />
-      <input
-        placeholder="State"
-        value={address.state}
-        onChange={(e) => setAddress({ ...address, state: e.target.value })}
-      />
-      <input
-        placeholder="Pincode"
-        value={address.pincode}
-        onChange={(e) => setAddress({ ...address, pincode: e.target.value })}
-      />
+      <input placeholder="Line 1" value={address.line1}
+        onChange={(e) => setAddress({ ...address, line1: e.target.value })} />
+      <input placeholder="Line 2" value={address.line2}
+        onChange={(e) => setAddress({ ...address, line2: e.target.value })} />
+      <input placeholder="City" value={address.city}
+        onChange={(e) => setAddress({ ...address, city: e.target.value })} />
+      <input placeholder="State" value={address.state}
+        onChange={(e) => setAddress({ ...address, state: e.target.value })} />
+      <input placeholder="Pincode" value={address.pincode}
+        onChange={(e) => setAddress({ ...address, pincode: e.target.value })} />
 
-      <h3>Payment Method</h3>
+      <h3>Payment</h3>
       <label>
-        <input
-          type="radio"
-          checked={payMethod === 'COD'}
-          onChange={() => setPayMethod('COD')}
-        />{' '}
-        Cash on Delivery
+        <input type="radio" checked={payMethod === 'COD'}
+          onChange={() => setPayMethod('COD')} /> Cash on Delivery
       </label>
       <br />
       <label>
-        <input
-          type="radio"
-          checked={payMethod === 'UPI'}
-          onChange={() => setPayMethod('UPI')}
-        />{' '}
-        Pay by UPI
+        <input type="radio" checked={payMethod === 'UPI'}
+          onChange={() => setPayMethod('UPI')} /> Pay by UPI
       </label>
 
       {payMethod === 'UPI' && (
-        <input
-          placeholder="UPI Reference (UTR)"
-          value={utr}
-          onChange={(e) => setUtr(e.target.value)}
-        />
+        <input placeholder="UPI Ref" value={utr}
+          onChange={(e) => setUtr(e.target.value)} />
       )}
 
       <h3>Total: {inr(total)}</h3>
 
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
 
-      <button
-        onClick={placeOrder}
-        style={{
-          marginTop: 16,
-          padding: '12px 16px',
-          background: '#f59e0b',
-          border: 'none',
-          borderRadius: 6,
-          fontWeight: 700,
-          cursor: 'pointer',
-        }}
-      >
+      <button onClick={placeOrder}
+        style={{ padding: 12, background: '#f59e0b', borderRadius: 6 }}>
         Place Order
       </button>
     </main>
