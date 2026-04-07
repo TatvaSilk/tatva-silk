@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
 export default function Guard({
@@ -11,45 +10,61 @@ export default function Guard({
   allowed: string[]
   children: React.ReactNode
 }) {
-  const router = useRouter()
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  const [loading, setLoading] = useState(true)
+  const [status, setStatus] = useState<
+    'loading' | 'unauthenticated' | 'unauthorized' | 'ok'
+  >('loading')
 
   useEffect(() => {
-    async function checkAccess() {
-      // 1️⃣ Get logged-in user
+    async function check() {
       const { data: { user } } = await supabase.auth.getUser()
 
       if (!user) {
-        router.push('/account')
+        setStatus('unauthenticated')
         return
       }
 
-      // 2️⃣ Fetch role from customer_profiles
-      const { data: profile, error } = await supabase
+      const { data: profile } = await supabase
         .from('customer_profiles')
         .select('role')
         .eq('id', user.id)
         .single()
 
-      // 3️⃣ Check role
-      if (error || !profile || !allowed.includes(profile.role)) {
-        router.push('/') // not authorized
+      if (!profile || !allowed.includes(profile.role)) {
+        setStatus('unauthorized')
         return
       }
 
-      setLoading(false)
+      setStatus('ok')
     }
 
-    checkAccess()
-  }, [allowed, router, supabase])
+    check()
+  }, [allowed, supabase])
 
-  if (loading) {
-    return <div style={{ padding: 40 }}>Checking permissions…</div>
+  if (status === 'loading') {
+    return <div style={{ padding: 40 }}>Checking access…</div>
+  }
+
+  if (status === 'unauthenticated') {
+    return (
+      <div style={{ padding: 40 }}>
+        <h2>Admin Login Required</h2>
+        <p>Please sign in to access the admin panel.</p>
+      </div>
+    )
+  }
+
+  if (status === 'unauthorized') {
+    return (
+      <div style={{ padding: 40 }}>
+        <h2>Access Denied</h2>
+        <p>You do not have permission to access the admin panel.</p>
+      </div>
+    )
   }
 
   return <>{children}</>
