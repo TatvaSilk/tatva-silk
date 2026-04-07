@@ -12,7 +12,7 @@ export async function PATCH(
 
     if (!status) {
       return NextResponse.json(
-        { error: 'Status is required' },
+        { error: 'Missing status' },
         { status: 400 }
       )
     }
@@ -22,11 +22,12 @@ export async function PATCH(
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    const { data, error, count } = await supabase
+    // ✅ EXPLICIT update + return row
+    const { data, error } = await supabase
       .from('orders')
       .update({ status })
       .eq('id', params.id)
-      .select()   // IMPORTANT: forces execution + returns row
+      .select('*')
 
     if (error) {
       return NextResponse.json(
@@ -37,16 +38,20 @@ export async function PATCH(
 
     if (!data || data.length === 0) {
       return NextResponse.json(
-        { error: 'No rows updated (check RLS or id)' },
+        { error: 'UPDATE ran but no rows changed' },
         { status: 400 }
       )
     }
 
-    return NextResponse.json({ success: true, order: data[0] })
+    return NextResponse.json({
+      success: true,
+      updated: data[0],
+    })
   } catch (e: any) {
     return NextResponse.json(
-      { error: e.message || 'Server error' },
+      { error: e.message },
       { status: 500 }
     )
   }
 }
+``
