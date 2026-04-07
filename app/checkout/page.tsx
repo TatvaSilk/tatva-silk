@@ -44,13 +44,23 @@ export default function CheckoutPage() {
   const [payMethod, setPayMethod] = useState<'COD' | 'UPI'>('COD')
   const [utr, setUtr] = useState('')
 
-  /* ✅ Read user from existing session (no crash) */
+  /* ✅ SUPABASE V2 SAFE SESSION READ */
   useEffect(() => {
-    const session = supabase.auth.session?.()
-    if (session?.user) {
-      setUserId(session.user.id)
+    async function loadSession() {
+      const { data, error } = await supabase.auth.getSession()
+
+      if (error) {
+        console.error('Session error', error)
+        return
+      }
+
+      if (data.session?.user) {
+        setUserId(data.session.user.id)
+      }
     }
-  }, [])
+
+    loadSession()
+  }, [supabase])
 
   /* ✅ Load cart safely */
   useEffect(() => {
@@ -66,15 +76,21 @@ export default function CheckoutPage() {
   useEffect(() => {
     async function loadProducts() {
       if (!cart.length) return
+
       const ids = cart.map((l) => l.productId)
+
       const { data } = await supabase
         .from('products')
-        .select('id,name,offer_price,original_price')
+        .select('id, name, offer_price, original_price')
         .in('id', ids)
+
       const map: Record<string, Product> = {}
-      data?.forEach((p: any) => (map[p.id] = p))
+      data?.forEach((p: any) => {
+        map[p.id] = p
+      })
       setProducts(map)
     }
+
     loadProducts()
   }, [cart, supabase])
 
@@ -95,7 +111,7 @@ export default function CheckoutPage() {
     }
 
     if (!customer.name || !customer.phone) {
-      setError('Enter name and phone')
+      setError('Enter name and phone number')
       return
     }
 
@@ -106,10 +122,10 @@ export default function CheckoutPage() {
 
     const res = await fetch('/api/orders/create', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         customer_id: userId,
-        items: cart,
+        items: cart,          // ✅ used to create order_items
         amount: subtotal,
         payment_status: payMethod === 'COD' ? 'cod_pending' : 'paid',
         customer,
@@ -120,7 +136,7 @@ export default function CheckoutPage() {
     const data = await res.json()
 
     if (!res.ok) {
-      setError(data.error || 'Order failed')
+      setError(data?.error || 'Order failed')
       return
     }
 
@@ -133,35 +149,61 @@ export default function CheckoutPage() {
       <h1>Checkout</h1>
 
       <h3>Customer Details</h3>
-      <input placeholder="Name" value={customer.name}
-        onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
-      <input placeholder="Phone" value={customer.phone}
-        onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
-      <input placeholder="Email" value={customer.email}
-        onChange={(e) => setCustomer({ ...customer, email: e.target.value })} />
+      <input
+        placeholder="Name"
+        value={customer.name}
+        onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
+      />
+      <input
+        placeholder="Phone"
+        value={customer.phone}
+        onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
+      />
+      <input
+        placeholder="Email"
+        value={customer.email}
+        onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
+      />
 
       <h3>Delivery Address</h3>
-      <input placeholder="Address" value={address.line1}
-        onChange={(e) => setAddress({ ...address, line1: e.target.value })} />
-      <input placeholder="City" value={address.city}
-        onChange={(e) => setAddress({ ...address, city: e.target.value })} />
-      <input placeholder="State" value={address.state}
-        onChange={(e) => setAddress({ ...address, state: e.target.value })} />
-      <input placeholder="Pincode" value={address.pincode}
-        onChange={(e) => setAddress({ ...address, pincode: e.target.value })} />
+      <input
+        placeholder="Address"
+        value={address.line1}
+        onChange={(e) => setAddress({ ...address, line1: e.target.value })}
+      />
+      <input
+        placeholder="City"
+        value={address.city}
+        onChange={(e) => setAddress({ ...address, city: e.target.value })}
+      />
+      <input
+        placeholder="State"
+        value={address.state}
+        onChange={(e) => setAddress({ ...address, state: e.target.value })}
+      />
+      <input
+        placeholder="Pincode"
+        value={address.pincode}
+        onChange={(e) => setAddress({ ...address, pincode: e.target.value })}
+      />
 
       <h3>Payment</h3>
       <label>
-        <input type="radio" checked={payMethod === 'COD'}
-          onChange={() => setPayMethod('COD')} /> Cash on Delivery
+        <input
+          type="radio"
+          checked={payMethod === 'COD'}
+          onChange={() => setPayMethod('COD')}
+        /> Cash on Delivery
       </label>
 
       <h3>Total: {inr(subtotal)}</h3>
 
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
 
-      <button onClick={placeOrder}
-        style={{ padding: 12, background: '#f59e0b' }}>
+      <button
+        onClick={placeOrder}
+        style={{ padding: 12, background: '#f59e0b' }}
+      >
         Place Order
       </button>
     </main>
