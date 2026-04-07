@@ -3,97 +3,87 @@ import { createClient } from '@supabase/supabase-js'
 
 export async function POST(req: Request) {
   try {
-    // Safely parse JSON
-    let body: any
-    try {
-      body = await req.json()
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid JSON in request body' },
-        { status: 400 }
-      )
+    const body = await req.json()
+
+    const {
+      customer_id,
+      items,
+      amount,
+      payment_status,
+      customer,
+      address
+    } = body
+
+    if (!customer_id || !items || items.length === 0) {
+      return NextResponse.json({ error: 'Invalid order data' }, { status: 400 })
     }
 
-    // Environment variables
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
 
-    if (!supabaseUrl || !supabaseKey) {
-      console.error('Missing Supabase environment variables')
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      )
-    }
-
-    // Validate input
-    const { customer_id, amount, payment_status } = body
-
-    if (!customer_id) {
-      return NextResponse.json(
-        { error: 'customer_id is required' },
-        { status: 400 }
-      )
-    }
-
-    // ✅ FIXED OPERATOR HERE
-    if (typeof amount !== 'number' || amount <= 0) {
-      return NextResponse.json(
-        { error: 'amount must be a positive number' },
-        { status: 400 }
-      )
-    }
-
-    if (!payment_status) {
-      return NextResponse.json(
-        { error: 'payment_status is required' },
-        { status: 400 }
-      )
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey)
-
-    const orderNo = `ORDER-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 9)
-      .toUpperCase()}`
-
-    const { data, error } = await supabase
+    // 1️⃣ Create Order
+    const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
-        order_no: orderNo,
+        order_no: `TS-${Date.now()}`,
         customer_id,
-        items_count: 1,
+        items_count: items.length,
         subtotal: amount,
         delivery_fee: 0,
         discount: 0,
         grand_total: amount,
         payment_status,
-        status: 'placed', // ✅ matches enum
+        status: 'placed',
+        shipping_name: customer.name,
+        shipping_phone: customer.phone,
+        shipping_address_line1: address.line1,
+        shipping_address_line2: address.line2 || null,
+        shipping_city: address.city,
+        shipping_state: address.state,
+        shipping_pin: address.pincode,
       })
       .select()
       .single()
 
-    if (error) {
-      console.error('Database error:', error)
+    if (orderError) {
+      return NextResponse.json({ error: orderError.message }, { status: 500 })
+    }
+
+    // 2️⃣ Create order_items records
+    const orderItems = items.map((item: any) => {
+      const lineTotal = item.price * item.qty
+
+      return {
+        order_id: order.id,
+        product_id: item.productId,
+        name: item.name,
+        price: item.price,
+        qty: item.qty,
+        line_total: lineTotal,
+      }
+    })
+
+    const { error: itemsError } = await supabase
+      .from('order_items')
+      .insert(orderItems)
+
+    if (itemsError) {
       return NextResponse.json(
-        { error: error.message },
+        { error: 'Order created, but items failed' },
         { status: 500 }
       )
     }
 
+    return NextResponse.json({
+      success: true,
+      orderNo: order.order_no,
+      orderId: order.id,
+    })
+  } catch (err: any) {
     return NextResponse.json(
-      {
-        success: true,
-        orderNo: data.order_no,
-        orderId: data.id,
-      },
-      { status: 201 }
-    )
-  } catch (err) {
-    console.error('Unexpected error:', err)
-    return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: err.message || 'Server error' },
       { status: 500 }
     )
   }
