@@ -1,34 +1,47 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js'
 
-export const dynamic = 'force-dynamic'; // ensure fresh data
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
+/** ✅ Money formatter (paise → rupees) */
+function formatINR(n?: number | null) {
+  if (typeof n !== 'number') return '₹0.00'
+  return `₹${(n / 100).toFixed(2)}`
+}
 
 export default async function AdminOrdersPage() {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY! // ✅ admin access
-  );
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
+  // ✅ 1. Fetch all orders
   const { data: orders, error } = await supabase
     .from('orders')
     .select('*')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
 
   if (error) {
     return (
-      <div style={{ padding: 20 }}>
+      <div style={{ padding: 40 }}>
         <h1>Orders</h1>
-        <p style={{ color: '#f87171' }}>Error: {error.message}</p>
+        <p style={{ color: '#f87171' }}>{error.message}</p>
       </div>
-    );
+    )
+  }
+
+  if (!orders || orders.length === 0) {
+    return (
+      <div style={{ padding: 40 }}>
+        <h1>Orders</h1>
+        <p>No orders found.</p>
+      </div>
+    )
   }
 
   return (
-    <div>
+    <div style={{ padding: 40 }}>
       <h1 style={{ marginBottom: 20 }}>Orders</h1>
-
-      {orders.length === 0 && (
-        <p style={{ opacity: 0.7 }}>No orders found.</p>
-      )}
 
       {orders.map((order) => (
         <div
@@ -39,12 +52,13 @@ export default async function AdminOrdersPage() {
             padding: 16,
             marginBottom: 16,
             background: '#020617',
+            color: '#e2e8f0',
           }}
         >
-          {/* Order Header */}
+          {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <strong>Order No:</strong>
-            <span>{order.order_no}</span>
+            <strong>{order.order_no}</strong>
+            <span>Status: {order.status}</span>
           </div>
 
           {/* Status dropdown */}
@@ -57,15 +71,14 @@ export default async function AdminOrdersPage() {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ status: e.target.value }),
-                });
-                location.reload(); // simple refresh
+                })
+                location.reload()
               }}
               style={{
                 background: '#020617',
                 color: '#e2e8f0',
                 border: '1px solid #334155',
                 borderRadius: 4,
-                padding: '4px 6px',
               }}
             >
               <option value="placed">Placed</option>
@@ -81,51 +94,40 @@ export default async function AdminOrdersPage() {
             <span>{order.payment_status}</span>
           </div>
 
-          {/* Total */}
+          {/* ✅ PRICE FIXED */}
           <div style={row}>
             <span>Total</span>
-            <span>₹{order.grand_total}</span>
+            <span>{formatINR(order.grand_total)}</span>
           </div>
 
           <hr style={{ borderColor: '#1f2937', margin: '12px 0' }} />
 
           {/* Shipping */}
-          <div style={{ fontSize: 14 }}>
-            <div>
-              <strong>Customer:</strong> {order.shipping_name}
-            </div>
-            <div>
-              <strong>Phone:</strong> {order.shipping_phone}
-            </div>
-            <div>
-              <strong>Address:</strong>{' '}
-              {[
-                order.shipping_address_line1,
-                order.shipping_city,
-                order.shipping_state,
-                order.shipping_pin,
-              ]
-                .filter(Boolean)
-                .join(', ')}
-            </div>
+          <div>
+            <strong>Customer:</strong> {order.shipping_name}<br />
+            <strong>Phone:</strong> {order.shipping_phone}<br />
+            <strong>Address:</strong>{' '}
+            {[order.shipping_address_line1, order.shipping_city, order.shipping_state, order.shipping_pin]
+              .filter(Boolean)
+              .join(', ')}
           </div>
 
-          {/* COD Confirm button */}
+          {/* COD confirm */}
           {order.payment_status === 'cod_pending' && (
             <button
               onClick={async () => {
                 await fetch(`/api/admin/orders/${order.id}/payment`, {
                   method: 'PATCH',
-                });
-                location.reload();
+                })
+                location.reload()
               }}
               style={{
                 marginTop: 12,
                 background: '#16a34a',
                 color: '#fff',
                 border: 'none',
-                borderRadius: 6,
                 padding: '6px 10px',
+                borderRadius: 6,
                 cursor: 'pointer',
               }}
             >
@@ -135,11 +137,11 @@ export default async function AdminOrdersPage() {
         </div>
       ))}
     </div>
-  );
+  )
 }
 
 const row: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   marginTop: 6,
-};
+}
