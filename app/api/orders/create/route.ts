@@ -9,12 +9,13 @@ export async function POST(req: Request) {
       customer_id,
       items,
       amount,
+      delivery_fee,
       payment_status,
       customer,
-      address
+      address,
     } = body
 
-    if (!customer_id || !items || items.length === 0) {
+    if (!customer_id || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'Invalid order data' }, { status: 400 })
     }
 
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // 1️⃣ Create Order
+    // 1️⃣ Create order
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -31,9 +32,9 @@ export async function POST(req: Request) {
         customer_id,
         items_count: items.length,
         subtotal: amount,
-        delivery_fee: shipping?.amount ?? 0,
+        delivery_fee: delivery_fee ?? 0,
         discount: 0,
-        grand_total: amount + (shipping?.amount ?? 0),
+        grand_total: amount + (delivery_fee ?? 0),
         payment_status,
         status: 'placed',
         shipping_name: customer.name,
@@ -51,19 +52,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: orderError.message }, { status: 500 })
     }
 
-    // 2️⃣ Create order_items records
-    const orderItems = items.map((item: any) => {
-      const lineTotal = item.price * item.qty
-
-      return {
-        order_id: order.id,
-        product_id: item.productId,
-        name: item.name,
-        price: item.price,
-        qty: item.qty,
-        line_total: lineTotal,
-      }
-    })
+    // 2️⃣ Insert order_items
+    const orderItems = items.map((item: any) => ({
+      order_id: order.id,
+      product_id: item.productId,
+      name: item.name,
+      price: item.price,
+      qty: item.qty,
+      line_total: item.price * item.qty,
+    }))
 
     const { error: itemsError } = await supabase
       .from('order_items')
