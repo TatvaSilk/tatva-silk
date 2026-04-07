@@ -1,52 +1,92 @@
-import { createClient } from '@supabase/supabase-js'
+// app/admin/orders/page.tsx
 
-export const dynamic = 'force-dynamic'
+import { createClient } from '@supabase/supabase-js';
+
+export const dynamic = 'force-dynamic';
 
 export default async function AdminOrdersPage() {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY! // admin power
-  )
+    process.env.SUPABASE_SERVICE_ROLE_KEY! // ✅ admin‑level access
+  );
 
   const { data: orders, error } = await supabase
     .from('orders')
     .select('*')
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: false });
 
   if (error) {
     return (
-      <main style={{ padding: 40 }}>
-        <h1>Admin Orders</h1>
-        <p style={{ color: 'crimson' }}>{error.message}</p>
-      </main>
-    )
+      <div style={{ padding: 20 }}>
+        <h1>Orders</h1>
+        <p style={{ color: '#f87171' }}>Error: {error.message}</p>
+      </div>
+    );
   }
 
   return (
-    <main style={{ maxWidth: 1000, margin: '0 auto', padding: 40 }}>
-      <h1>Admin Orders</h1>
+    <div>
+      <h1 style={{ marginBottom: 20 }}>Orders</h1>
 
-      {orders.length === 0 && <p>No orders yet.</p>}
+      {orders.length === 0 && (
+        <p style={{ opacity: 0.7 }}>No orders found.</p>
+      )}
 
       {orders.map((order) => (
         <div
           key={order.id}
           style={{
-            border: '1px solid #e5e7eb',
+            border: '1px solid #334155',
             borderRadius: 8,
             padding: 16,
             marginBottom: 16,
+            background: '#020617',
           }}
         >
-          <strong>Order No:</strong> {order.order_no} <br />
-          <strong>Status:</strong> {order.status} <br />
-          <strong>Payment:</strong> {order.payment_status} <br />
-          <strong>Total:</strong> ₹{order.grand_total} <br />
-          <strong>Customer:</strong> {order.shipping_name} <br />
-          <strong>Phone:</strong> {order.shipping_phone} <br />
-          <strong>City:</strong> {order.shipping_city}
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <strong>Order No:</strong>
+            <span>{order.order_no}</span>
+          </div>
+
+          <div style={row}>
+            <span>Status</span>
+            <span>{order.status}</span>
+          </div>
+
+          <div style={row}>
+            <span>Payment</span>
+            <span>{order.payment_status}</span>
+          </div>
+
+          <div style={row}>
+            <span>Total</span>
+            <span>₹{order.grand_total}</span>
+          </div>
+
+          <hr style={{ borderColor: '#1f2937', margin: '12px 0' }} />
+
+          <div style={{ fontSize: 14 }}>
+            <div>
+              <strong>Customer:</strong> {order.shipping_name}
+            </div>
+            <div>
+              <strong>Phone:</strong> {order.shipping_phone}
+            </div>
+            <div>
+              <strong>Address:</strong>{' '}
+              {[order.shipping_address_line1, order.shipping_city, order.shipping_state, order.shipping_pin]
+                .filter(Boolean)
+                .join(', ')}
+            </div>
+          </div>
         </div>
       ))}
-    </main>
-  )
+    </div>
+  );
 }
+
+const row: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  marginTop: 6,
+};
