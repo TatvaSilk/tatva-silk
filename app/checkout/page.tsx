@@ -11,6 +11,11 @@ type Product = {
   original_price: number | null
 }
 
+type ShippingQuote = {
+  label: string
+  amount: number
+}
+
 function inr(n: number) {
   return `₹${n.toLocaleString('en-IN')}`
 }
@@ -41,28 +46,21 @@ export default function CheckoutPage() {
     country: 'IN',
   })
 
+  const [shipping, setShipping] = useState<ShippingQuote | null>(null)
+  const [loadingShipping, setLoadingShipping] = useState(false)
+
   const [payMethod, setPayMethod] = useState<'COD' | 'UPI'>('COD')
-  const [utr, setUtr] = useState('')
 
-  /* ✅ SUPABASE V2 SAFE SESSION READ */
+  /* ✅ Get logged-in user (Supabase v2 safe) */
   useEffect(() => {
-    async function loadSession() {
-      const { data, error } = await supabase.auth.getSession()
-
-      if (error) {
-        console.error('Session error', error)
-        return
-      }
-
+    supabase.auth.getSession().then(({ data }) => {
       if (data.session?.user) {
         setUserId(data.session.user.id)
       }
-    }
-
-    loadSession()
+    })
   }, [supabase])
 
-  /* ✅ Load cart safely */
+  /* ✅ Load cart */
   useEffect(() => {
     try {
       const c = getCart()
@@ -78,10 +76,9 @@ export default function CheckoutPage() {
       if (!cart.length) return
 
       const ids = cart.map((l) => l.productId)
-
       const { data } = await supabase
         .from('products')
-        .select('id, name, offer_price, original_price')
+        .select('id,name,offer_price,original_price')
         .in('id', ids)
 
       const map: Record<string, Product> = {}
@@ -94,6 +91,7 @@ export default function CheckoutPage() {
     loadProducts()
   }, [cart, supabase])
 
+  /* ✅ Subtotal */
   const subtotal = useMemo(() => {
     return cart.reduce((sum, l) => {
       const p = products[l.productId]
@@ -102,6 +100,40 @@ export default function CheckoutPage() {
     }, 0)
   }, [cart, products])
 
+  /* ✅ Call SHIPPING API when pincode changes */
+  useEffect(() => {
+    async function quoteShipping() {
+      if (address.pincode.length !== 6) return
+      if (!cart.length) return
+
+      setLoadingShipping(true)
+
+      try {
+        const res = await fetch('/api/shipping/quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cart,
+            address,
+          }),
+        })
+
+        const data = await res.json()
+
+        if (res.ok) {
+          setShipping(data.quote)
+        }
+      } finally {
+        setLoadingShipping(false)
+      }
+    }
+
+    quoteShipping()
+  }, [address.pincode, cart])
+
+  const total = subtotal + (shipping?.amount ?? 0)
+
+  /* ✅ Place Order */
   async function placeOrder() {
     setError(null)
 
@@ -111,7 +143,7 @@ export default function CheckoutPage() {
     }
 
     if (!customer.name || !customer.phone) {
-      setError('Enter name and phone number')
+      setError('Enter name and phone')
       return
     }
 
@@ -120,14 +152,20 @@ export default function CheckoutPage() {
       return
     }
 
+    if (!shipping) {
+      setError('Please enter valid pincode to calculate shipping')
+      return
+    }
+
     const res = await fetch('/api/orders/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         customer_id: userId,
-        items: cart,          // ✅ used to create order_items
+        items: cart,
         amount: subtotal,
-        payment_status: payMethod === 'COD' ? 'cod_pending' : 'paid',
+        delivery_fee: shipping.amount,
+        payment_status: 'cod_pending',
         customer,
         address,
       }),
@@ -136,7 +174,7 @@ export default function CheckoutPage() {
     const data = await res.json()
 
     if (!res.ok) {
-      setError(data?.error || 'Order failed')
+      setError(data.error || 'Order failed')
       return
     }
 
@@ -187,16 +225,18 @@ export default function CheckoutPage() {
         onChange={(e) => setAddress({ ...address, pincode: e.target.value })}
       />
 
-      <h3>Payment</h3>
-      <label>
-        <input
-          type="radio"
-          checked={payMethod === 'COD'}
-          onChange={() => setPayMethod('COD')}
-        /> Cash on Delivery
-      </label>
+      <h3>Summary</h3>
+      <p>Subtotal: {inr(subtotal)}</p>
+      <p>
+        Shipping:{' '}
+        {loadingShipping
+          ? 'Calculating…'
+          : shipping
+          ? `${shipping.label}: ${inr(shipping.amount)}`
+          : 'Enter pincode'}
+      </p>
 
-      <h3>Total: {inr(subtotal)}</h3>
+      <h3>Total: {inr(total)}</h3>
 
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
 
