@@ -2,57 +2,52 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabaseBrowser } from '../../../lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
 
 export default function Guard({
-  allowed = ['admin', 'manager'],
-  children
+  allowed,
+  children,
 }: {
-  allowed?: string[];
+  allowed: string[];
   children: React.ReactNode;
 }) {
-  const [checking, setChecking] = useState(true);
-  const [ok, setOk] = useState(false);
   const router = useRouter();
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
+    async function check() {
+      const { data: { user } } = await supabase.auth.getUser();
 
-    (async () => {
-      try {
-        // Get token from Supabase client
-        const supabase = supabaseBrowser();
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData?.session?.access_token;
-        if (!token) { router.replace('/login'); return; }
-
-        // Ask server who I am (with Bearer token)
-        const res = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: 'no-store'
-        });
-
-        if (res.status === 401) { router.replace('/login'); return; }
-        if (!res.ok) { router.replace('/'); return; }
-
-        const me = await res.json();
-
-        // Require role AND approved = true
-        if (!allowed.includes(me.role) || me.approved !== true) {
-          router.replace('/'); // signed in but not allowed/approved
-          return;
-        }
-
-        if (!cancelled) { setOk(true); setChecking(false); }
-      } catch {
-        router.replace('/login');
+      if (!user) {
+        router.push('/login');
+        return;
       }
-    })();
 
-    return () => { cancelled = true; };
-  }, [router, allowed]);
+      const { data: profile } = await supabase
+        .from('customer_profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
 
-  if (checking) return <div style={{ padding: 20, opacity: 0.7 }}>Checking access…</div>;
-  if (!ok) return null;
+      if (!profile || !allowed.includes(profile.role)) {
+        router.push('/'); // ✅ redirect instead of 404
+        return;
+      }
+
+      setLoading(false);
+    }
+
+    check();
+  }, [allowed, router, supabase]);
+
+  if (loading) {
+    return <div style={{ padding: 40 }}>Checking permissions…</div>;
+  }
+
   return <>{children}</>;
 }
