@@ -162,7 +162,17 @@ export default function CheckoutPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         customer_id: userId,
-        items: cart,
+        items: cart.map((l) => {
+  const p = products[l.productId]
+  const price = p?.offer_price ?? p?.original_price ?? 0
+
+  return {
+    productId: l.productId,
+    name: p?.name || 'Product',
+    price,
+    qty: l.qty,
+  }
+}),
         amount: subtotal,
         delivery_fee: shipping.amount,
         payment_status: 'cod_pending',
