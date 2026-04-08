@@ -22,7 +22,7 @@ export async function PATCH(
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // ✅ 1. Get current order status
+    // 1️⃣ Fetch current order
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('id, status')
@@ -38,7 +38,7 @@ export async function PATCH(
 
     const oldStatus = order.status
 
-    // ✅ 2. Update order status
+    // 2️⃣ Update order status
     const { error: updateError } = await supabase
       .from('orders')
       .update({ status: newStatus })
@@ -51,32 +51,53 @@ export async function PATCH(
       )
     }
 
-    // ✅ 3. Deduct stock ONLY on transition → shipped
+    // 3️⃣ Load order items (used by both paths)
+    const { data: items, error: itemsError } = await supabase
+      .from('order_items')
+      .select('product_id, qty')
+      .eq('order_id', params.id)
+
+    if (itemsError) {
+      return NextResponse.json(
+        { error: 'Failed to load order items' },
+        { status: 500 }
+      )
+    }
+
+    // ✅ 4️⃣ DEDUCT STOCK: packed → shipped
     if (oldStatus !== 'shipped' && newStatus === 'shipped') {
-      // get ordered items
-      const { data: items, error: itemsError } = await supabase
-        .from('order_items')
-        .select('product_id, qty')
-        .eq('order_id', params.id)
-
-      if (itemsError) {
-        return NextResponse.json(
-          { error: 'Failed to load order items' },
-          { status: 500 }
-        )
-      }
-
-      // ✅ deduct stock per item
       for (const item of items ?? []) {
-        const { error: stockError } = await supabase
-          .rpc('decrease_stock_qty', {
+        const { error } = await supabase.rpc(
+          'decrease_stock_qty',
+          {
             p_product_id: item.product_id,
             p_qty: item.qty,
-          })
+          }
+        )
 
-        if (stockError) {
+        if (error) {
           return NextResponse.json(
-            { error: stockError.message },
+            { error: error.message },
+            { status: 500 }
+          )
+        }
+      }
+    }
+
+    // ✅ 5️⃣ RESTORE STOCK: packed → cancelled
+    if (oldStatus === 'packed' && newStatus === 'cancelled') {
+      for (const item of items ?? []) {
+        const { error } = await supabase.rpc(
+          'increase_stock_qty',
+          {
+            p_product_id: item.product_id,
+            p_qty: item.qty,
+          }
+        )
+
+        if (error) {
+          return NextResponse.json(
+            { error: error.message },
             { status: 500 }
           )
         }
@@ -91,3 +112,4 @@ export async function PATCH(
     )
   }
 }
+``
