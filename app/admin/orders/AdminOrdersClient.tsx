@@ -1,12 +1,14 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
+
 function formatINR(n?: number | null) {
   if (typeof n !== 'number') return '₹0.00'
   return `₹${(n / 100).toFixed(2)}`
 }
 
 /**
- * ✅ ENUM VALUES MUST MATCH DATABASE EXACTLY (lowercase)
+ * MUST MATCH DATABASE ENUM (lowercase)
  */
 const STATUS_OPTIONS = [
   'placed',
@@ -24,6 +26,8 @@ export default function AdminOrdersClient({
   orders: any[]
   items: any[]
 }) {
+  const router = useRouter()
+
   const itemsByOrder: Record<string, any[]> = {}
 
   items.forEach((item) => {
@@ -75,16 +79,17 @@ export default function AdminOrdersClient({
             Update Status
           </label>
 
-          {/* ✅ value is lowercase, label is uppercase */}
           <select
-            value={order.status}  // this is already lowercase from DB
+            value={order.status}
             onChange={async (e) => {
               await fetch(`/api/admin/orders/${order.id}/status`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: e.target.value }), // lowercase ✅
+                body: JSON.stringify({ status: e.target.value }),
               })
-              location.reload()
+
+              // ✅ CORRECT WAY TO REFRESH SERVER DATA
+              router.refresh()
             }}
             style={{
               background: '#020617',
@@ -107,7 +112,9 @@ export default function AdminOrdersClient({
                 await fetch(`/api/admin/orders/${order.id}/payment`, {
                   method: 'PATCH',
                 })
-                location.reload()
+
+                // ✅ refresh again after payment update
+                router.refresh()
               }}
               style={{
                 marginTop: 12,
@@ -127,4 +134,3 @@ export default function AdminOrdersClient({
     </main>
   )
 }
-``
