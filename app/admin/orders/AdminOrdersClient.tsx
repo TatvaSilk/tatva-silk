@@ -1,15 +1,12 @@
 'use client'
 
-/**
- * Format paise → rupees
- */
 function formatINR(n?: number | null) {
   if (typeof n !== 'number') return '₹0.00'
   return `₹${(n / 100).toFixed(2)}`
 }
 
 /**
- * EXACT enum values from database
+ * ✅ ENUM VALUES MUST MATCH DATABASE EXACTLY (lowercase)
  */
 const STATUS_OPTIONS = [
   'placed',
@@ -27,7 +24,6 @@ export default function AdminOrdersClient({
   orders: any[]
   items: any[]
 }) {
-  // Group items by order_id
   const itemsByOrder: Record<string, any[]> = {}
 
   items.forEach((item) => {
@@ -53,7 +49,6 @@ export default function AdminOrdersClient({
             color: '#e5e7eb',
           }}
         >
-          {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <strong>{order.order_no}</strong>
             <span>Status: {order.status}</span>
@@ -61,7 +56,6 @@ export default function AdminOrdersClient({
 
           <hr />
 
-          {/* Order items */}
           {(itemsByOrder[order.id] || []).map((item) => (
             <div key={item.id}>
               {item.name} × {item.qty} — {formatINR(item.line_total)}
@@ -70,7 +64,6 @@ export default function AdminOrdersClient({
 
           <hr />
 
-          {/* Totals */}
           <div>Subtotal: {formatINR(order.subtotal)}</div>
           <div>Delivery: {formatINR(order.delivery_fee)}</div>
           <div>Discount: {formatINR(order.discount)}</div>
@@ -78,23 +71,19 @@ export default function AdminOrdersClient({
 
           <hr />
 
-          {/* Status update (MATCHES ENUM EXACTLY ✅) */}
           <label style={{ display: 'block', marginBottom: 6 }}>
             Update Status
           </label>
 
+          {/* ✅ value is lowercase, label is uppercase */}
           <select
-            value={order.status}
+            value={order.status}  // this is already lowercase from DB
             onChange={async (e) => {
-              const newStatus = e.target.value
-
               await fetch(`/api/admin/orders/${order.id}/status`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus }),
+                body: JSON.stringify({ status: e.target.value }), // lowercase ✅
               })
-
-              // reload to reflect DB change
               location.reload()
             }}
             style={{
@@ -112,7 +101,6 @@ export default function AdminOrdersClient({
             ))}
           </select>
 
-          {/* COD payment confirmation */}
           {order.payment_status === 'cod_pending' && (
             <button
               onClick={async () => {
@@ -122,7 +110,6 @@ export default function AdminOrdersClient({
                 location.reload()
               }}
               style={{
-                display: 'block',
                 marginTop: 12,
                 background: '#16a34a',
                 color: '#fff',
@@ -140,3 +127,4 @@ export default function AdminOrdersClient({
     </main>
   )
 }
+``
