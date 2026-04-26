@@ -117,39 +117,16 @@ export default function ProductsPage() {
 
                 return (
                   <tr key={p.id} style={{ borderBottom: '1px solid #1f2937' }}>
-                    <td style={td}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {p.primary_image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={p.primary_image_url}
-                            alt=""
-                            width={40}
-                            height={40}
-                            style={{ borderRadius: 6, objectFit: 'cover' }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 6,
-                              background: '#1f2937',
-                            }}
-                          />
-                        )}
-                        <span>{p.name}</span>
-                      </div>
-                    </td>
+                    <td style={td}>{p.name}</td>
 
-                    {/* ✅ FIXED PRICE DISPLAY */}
+                    {/* ✅ PRICE FIX (PAISE → RUPEES) */}
                     <td style={td}>
                       {hasOffer ? (
                         <>
                           <span
                             style={{
                               textDecoration: 'line-through',
-                              opacity: 0.7,
+                              opacity: 0.6,
                               marginRight: 8,
                             }}
                           >
@@ -169,9 +146,13 @@ export default function ProductsPage() {
                         ? new Date(p.created_at).toLocaleString('en-IN')
                         : '—'}
                     </td>
+
                     <td style={{ ...td, textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                        <Link href={`/admin/products/${p.id}`} style={secondaryBtn}>
+                        <Link
+                          href={`/admin/products/${p.id}`}
+                          style={secondaryBtn}
+                        >
                           Edit
                         </Link>
                         <button
@@ -210,6 +191,7 @@ const th: React.CSSProperties = {
   color: '#cbd5e1',
 }
 const td: React.CSSProperties = { padding: '10px 8px' }
+
 const primaryBtn: React.CSSProperties = {
   background: '#2563eb',
   color: '#fff',
@@ -217,6 +199,7 @@ const primaryBtn: React.CSSProperties = {
   borderRadius: 6,
   textDecoration: 'none',
 }
+
 const secondaryBtn: React.CSSProperties = {
   background: '#1f2937',
   color: '#e5e7eb',
@@ -224,5 +207,4 @@ const secondaryBtn: React.CSSProperties = {
   borderRadius: 6,
   padding: '6px 8px',
   cursor: 'pointer',
-  textDecoration: 'none',
 }
