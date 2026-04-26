@@ -28,12 +28,12 @@ export default function AdminOrdersClient({
           <div
             key={order.id}
             style={{
-              border: '1px solid #334155',
-              borderRadius: 12,
-              marginBottom: 24,
-              padding: 16,
               background: '#020617',
               color: '#e5e7eb',
+              padding: 20,
+              borderRadius: 12,
+              marginBottom: 32,
+              border: '1px solid #334155',
             }}
           >
             {/* HEADER */}
@@ -42,25 +42,23 @@ export default function AdminOrdersClient({
               <span>Status: {order.status}</span>
             </div>
 
-            {/* ✅ ORDER DATE */}
+            {/* DATE */}
             <div style={{ fontSize: 12, color: '#94a3b8' }}>
-              Order Date:{' '}
-              {new Date(order.created_at).toLocaleString('en-IN')}
+              Order Date: {new Date(order.created_at).toLocaleString('en-IN')}
             </div>
 
             <hr />
 
-            {/* ✅ ITEMS */}
+            {/* ITEMS */}
             {orderItems.map(item => (
               <div key={item.id}>
-                {item.name} × {item.qty} —{' '}
-                {formatINR(item.price * item.qty)}
+                {item.name} × {item.qty} — {formatINR(item.price * item.qty)}
               </div>
             ))}
 
             <hr />
 
-            {/* ✅ TOTALS */}
+            {/* TOTALS */}
             <div>Subtotal: {formatINR(order.subtotal)}</div>
             <div>Delivery: {formatINR(order.delivery_fee)}</div>
             <div>Discount: {formatINR(order.discount)}</div>
@@ -68,7 +66,7 @@ export default function AdminOrdersClient({
 
             <hr />
 
-            {/* ✅ SHIPPING */}
+            {/* ✅ SHIPPING (WILL NOW SHOW) */}
             <h4>Shipping</h4>
             <div style={{ fontSize: 14 }}>
               <div>
@@ -81,8 +79,7 @@ export default function AdminOrdersClient({
                   : ''}
               </div>
               <div>
-                {order.shipping_city}, {order.shipping_state} –{' '}
-                {order.shipping_pin}
+                {order.shipping_city}, {order.shipping_state} – {order.shipping_pin}
               </div>
             </div>
           </div>
