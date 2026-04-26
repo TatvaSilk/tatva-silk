@@ -29,13 +29,17 @@ export default function AdminOrdersClient({
   // ✅ local editable state per order
   const [statusState, setStatusState] = useState<Record<string, string>>({})
 
-  // group items by order
+  /**
+   * ✅ FIX 1: Normalize keys to STRING to avoid Supabase UUID mismatch
+   */
   const itemsByOrder: Record<string, any[]> = {}
+
   items.forEach((item) => {
-    if (!itemsByOrder[item.order_id]) {
-      itemsByOrder[item.order_id] = []
+    const orderKey = String(item.order_id)
+    if (!itemsByOrder[orderKey]) {
+      itemsByOrder[orderKey] = []
     }
-    itemsByOrder[item.order_id].push(item)
+    itemsByOrder[orderKey].push(item)
   })
 
   async function saveStatus(orderId: string) {
@@ -80,6 +84,8 @@ export default function AdminOrdersClient({
       <h1>Admin Orders</h1>
 
       {orders.map((order) => {
+        const orderKey = String(order.id)
+        const orderItems = itemsByOrder[orderKey] || []
         const selectedStatus = statusState[order.id] ?? order.status
 
         return (
@@ -101,11 +107,19 @@ export default function AdminOrdersClient({
 
             <hr />
 
-            {(itemsByOrder[order.id] || []).map((item) => (
-              <div key={item.id}>
-                {item.name} × {item.qty} — {formatINR(item.line_total)}
+            {/* ✅ FIX 2: Always show order description or fallback */}
+            {orderItems.length > 0 ? (
+              orderItems.map((item) => (
+                <div key={item.id}>
+                  {(item.name ?? 'Product')} × {item.qty ?? 1} —{' '}
+                  {formatINR(item.line_total)}
+                </div>
+              ))
+            ) : (
+              <div style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                No product details found for this order
               </div>
-            ))}
+            )}
 
             <hr />
 
@@ -144,7 +158,6 @@ export default function AdminOrdersClient({
               ))}
             </select>
 
-            {/* ✅ SAVE BUTTON */}
             <button
               onClick={() => saveStatus(order.id)}
               disabled={selectedStatus === order.status}
@@ -164,7 +177,6 @@ export default function AdminOrdersClient({
               Save Status
             </button>
 
-            {/* ✅ COD PAYMENT */}
             {order.payment_status === 'cod_pending' && (
               <div style={{ marginTop: 12 }}>
                 <button
@@ -188,3 +200,4 @@ export default function AdminOrdersClient({
     </main>
   )
 }
+``
