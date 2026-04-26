@@ -66,7 +66,7 @@ export default function CheckoutPage() {
     setCart(Array.isArray(c) ? c : [])
   }, [])
 
-  /* ✅ Load products (USE offer_price / original_price) */
+  /* ✅ Load products */
   useEffect(() => {
     async function loadProducts() {
       if (!cart.length) return
@@ -89,7 +89,32 @@ export default function CheckoutPage() {
     loadProducts()
   }, [cart, supabase])
 
-  /* ✅ Subtotal (frontend display only) */
+  /* ✅ Auto-fill city/state from pincodes table */
+  useEffect(() => {
+    async function lookupPincode() {
+      if (address.pincode.length !== 6) return
+
+      const { data } = await supabase
+        .from('pincodes')
+        .select('district,state')
+        .eq('pin', address.pincode)
+        .eq('active', true)
+        .single()
+
+      if (data) {
+        setAddress(prev => ({
+          ...prev,
+          city: data.district,
+          state: data.state,
+        }))
+        setShipping({ label: 'Standard (India)', amount: 99 })
+      }
+    }
+
+    lookupPincode()
+  }, [address.pincode, supabase])
+
+  /* ✅ Subtotal */
   const subtotal = useMemo(() => {
     return cart.reduce((sum, l) => {
       const p = products[l.productId]
@@ -98,18 +123,9 @@ export default function CheckoutPage() {
     }, 0)
   }, [cart, products])
 
-  /* ✅ Shipping (₹99 after valid pincode) */
-  useEffect(() => {
-    if (address.pincode.length === 6) {
-      setShipping({ label: 'Standard (India)', amount: 99 })
-    } else {
-      setShipping(null)
-    }
-  }, [address.pincode])
-
   const total = subtotal + (shipping?.amount ?? 0)
 
-  /* ✅ PLACE ORDER (OPTION A – SAFE) */
+  /* ✅ PLACE ORDER (uses existing backend) */
   async function placeOrder() {
     setError(null)
 
@@ -117,29 +133,28 @@ export default function CheckoutPage() {
     if (!customer.name || !customer.phone) return setError('Enter name & phone')
     if (!address.line1 || !address.city || !address.state || !address.pincode)
       return setError('Complete address')
-    if (!shipping) return setError('Enter valid pincode')
+    if (!shipping) return setError('Invalid pincode')
 
-    const res = await fetch('/api/checkout', {
+    const res = await fetch('/api/orders/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         customer_id: userId,
-        email: customer.email,
-
-        cartItems: cart.map(l => ({
-          id: l.productId,
-          qty: l.qty,
-        })),
-
-        shipping: {
-          name: customer.name,
-          phone: customer.phone,
-          address1: address.line1,
-          address2: address.line2 || null,
-          city: address.city,
-          state: address.state,
-          pin: address.pincode,
-        },
+        items: cart.map(l => {
+          const p = products[l.productId]
+          const price = p?.offer_price ?? p?.original_price ?? 0
+          return {
+            productId: l.productId,
+            name: p?.name || 'Product',
+            price,
+            qty: l.qty,
+          }
+        }),
+        amount: subtotal,
+        delivery_fee: shipping.amount,
+        payment_status: 'cod_pending',
+        customer,
+        address,
       }),
     })
 
@@ -151,7 +166,7 @@ export default function CheckoutPage() {
     }
 
     localStorage.setItem('cart', '[]')
-    window.location.href = `/thank-you?order=${data.order_no}`
+    window.location.href = `/thank-you?order=${data.orderNo}`
   }
 
   return (
@@ -159,43 +174,29 @@ export default function CheckoutPage() {
       <h1>Checkout</h1>
 
       <h3>Customer Details</h3>
-      <input
+      <input value={customer.name}
         placeholder="Name"
-        value={customer.name}
-        onChange={e => setCustomer({ ...customer, name: e.target.value })}
-      />
-      <input
+        onChange={e => setCustomer({ ...customer, name: e.target.value })} />
+      <input value={customer.phone}
         placeholder="Phone"
-        value={customer.phone}
-        onChange={e => setCustomer({ ...customer, phone: e.target.value })}
-      />
-      <input
+        onChange={e => setCustomer({ ...customer, phone: e.target.value })} />
+      <input value={customer.email}
         placeholder="Email"
-        value={customer.email}
-        onChange={e => setCustomer({ ...customer, email: e.target.value })}
-      />
+        onChange={e => setCustomer({ ...customer, email: e.target.value })} />
 
       <h3>Delivery Address</h3>
-      <input
-        placeholder="Address"
+      <input placeholder="Address"
         value={address.line1}
-        onChange={e => setAddress({ ...address, line1: e.target.value })}
-      />
-      <input
-        placeholder="City"
+        onChange={e => setAddress({ ...address, line1: e.target.value })} />
+      <input placeholder="City"
         value={address.city}
-        onChange={e => setAddress({ ...address, city: e.target.value })}
-      />
-      <input
-        placeholder="State"
+        readOnly />
+      <input placeholder="State"
         value={address.state}
-        onChange={e => setAddress({ ...address, state: e.target.value })}
-      />
-      <input
-        placeholder="Pincode"
+        readOnly />
+      <input placeholder="Pincode"
         value={address.pincode}
-        onChange={e => setAddress({ ...address, pincode: e.target.value })}
-      />
+        onChange={e => setAddress({ ...address, pincode: e.target.value })} />
 
       <h3>Summary</h3>
       <p>Subtotal: {inr(subtotal)}</p>
@@ -204,10 +205,8 @@ export default function CheckoutPage() {
 
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
 
-      <button
-        onClick={placeOrder}
-        style={{ padding: 12, background: '#f59e0b' }}
-      >
+      <button onClick={placeOrder}
+        style={{ padding: 12, background: '#f59e0b' }}>
         Place Order
       </button>
     </main>
