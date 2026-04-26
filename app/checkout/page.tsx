@@ -7,8 +7,7 @@ import { getCart, CartLine } from '@/lib/cart'
 type Product = {
   id: string
   name: string | null
-  offer_price: number | null
-  original_price: number | null
+  price: number
 }
 
 type ShippingQuote = {
@@ -43,42 +42,36 @@ export default function CheckoutPage() {
     city: '',
     state: '',
     pincode: '',
-    country: 'IN',
   })
 
   const [shipping, setShipping] = useState<ShippingQuote | null>(null)
-  const [loadingShipping, setLoadingShipping] = useState(false)
 
-  const [payMethod, setPayMethod] = useState<'COD' | 'UPI'>('COD')
-
-  /* ✅ Get logged-in user (Supabase v2 safe) */
+  /* ✅ Logged-in user */
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session?.user) {
         setUserId(data.session.user.id)
+        setCustomer(c => ({ ...c, email: data.session?.user?.email || '' }))
       }
     })
   }, [supabase])
 
   /* ✅ Load cart */
   useEffect(() => {
-    try {
-      const c = getCart()
-      setCart(Array.isArray(c) ? c : [])
-    } catch {
-      setCart([])
-    }
+    const c = getCart()
+    setCart(Array.isArray(c) ? c : [])
   }, [])
 
-  /* ✅ Load product prices */
+  /* ✅ Load product prices (RUPEES) */
   useEffect(() => {
     async function loadProducts() {
       if (!cart.length) return
 
-      const ids = cart.map((l) => l.productId)
+      const ids = cart.map(l => l.productId)
+
       const { data } = await supabase
         .from('products')
-        .select('id,name,offer_price,original_price')
+        .select('id,name,price')
         .in('id', ids)
 
       const map: Record<string, Product> = {}
@@ -91,93 +84,54 @@ export default function CheckoutPage() {
     loadProducts()
   }, [cart, supabase])
 
-  /* ✅ Subtotal */
+  /* ✅ Subtotal (display only) */
   const subtotal = useMemo(() => {
     return cart.reduce((sum, l) => {
       const p = products[l.productId]
-      const price = p?.offer_price ?? p?.original_price ?? 0
-      return sum + price * l.qty
+      return sum + (p?.price ?? 0) * l.qty
     }, 0)
   }, [cart, products])
 
-  /* ✅ Call SHIPPING API when pincode changes */
+  /* ✅ Fake shipping (₹99) */
   useEffect(() => {
-    async function quoteShipping() {
-      if (address.pincode.length !== 6) return
-      if (!cart.length) return
-
-      setLoadingShipping(true)
-
-      try {
-        const res = await fetch('/api/shipping/quote', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            cart,
-            address,
-          }),
-        })
-
-        const data = await res.json()
-
-        if (res.ok) {
-          setShipping(data.quote)
-        }
-      } finally {
-        setLoadingShipping(false)
-      }
+    if (address.pincode.length === 6) {
+      setShipping({ label: 'Standard (India)', amount: 99 })
     }
-
-    quoteShipping()
-  }, [address.pincode, cart])
+  }, [address.pincode])
 
   const total = subtotal + (shipping?.amount ?? 0)
 
-  /* ✅ Place Order */
+  /* ✅ PLACE ORDER (OPTION A) */
   async function placeOrder() {
     setError(null)
 
-    if (!userId) {
-      setError('Please login to place order')
-      return
-    }
+    if (!userId) return setError('Please login')
+    if (!customer.name || !customer.phone) return setError('Enter name & phone')
+    if (!address.line1 || !address.city || !address.state || !address.pincode)
+      return setError('Complete address')
+    if (!shipping) return setError('Enter valid pincode')
 
-    if (!customer.name || !customer.phone) {
-      setError('Enter name and phone')
-      return
-    }
-
-    if (!address.line1 || !address.city || !address.state || !address.pincode) {
-      setError('Complete delivery address')
-      return
-    }
-
-    if (!shipping) {
-      setError('Please enter valid pincode to calculate shipping')
-      return
-    }
-
-    const res = await fetch('/api/orders/create', {
+    const res = await fetch('/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         customer_id: userId,
-        items: cart.map((l) => {
-  const p = products[l.productId]
-  const price = p?.offer_price ?? p?.original_price ?? 0
+        email: customer.email,
 
-  return {
-    productId: l.productId,
-    name: p?.name || 'Product',
-    price,
-    qty: l.qty,
-  }
-}),
-        amount: subtotal,
-        delivery_fee: shipping.amount,
-        payment_status: 'cod_pending',
-        customer,
-        address,
+        cartItems: cart.map(l => ({
+          id: l.productId,
+          qty: l.qty,
+        })),
+
+        shipping: {
+          name: customer.name,
+          phone: customer.phone,
+          address1: address.line1,
+          address2: address.line2 || null,
+          city: address.city,
+          state: address.state,
+          pin: address.pincode,
+        },
       }),
     })
 
@@ -189,7 +143,7 @@ export default function CheckoutPage() {
     }
 
     localStorage.setItem('cart', '[]')
-    window.location.href = `/thank-you?order=${data.orderNo}`
+    window.location.href = `/thank-you?order=${data.order_no}`
   }
 
   return (
@@ -197,63 +151,32 @@ export default function CheckoutPage() {
       <h1>Checkout</h1>
 
       <h3>Customer Details</h3>
-      <input
-        placeholder="Name"
-        value={customer.name}
-        onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
-      />
-      <input
-        placeholder="Phone"
-        value={customer.phone}
-        onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
-      />
-      <input
-        placeholder="Email"
-        value={customer.email}
-        onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
-      />
+      <input placeholder="Name" value={customer.name}
+        onChange={e => setCustomer({ ...customer, name: e.target.value })} />
+      <input placeholder="Phone" value={customer.phone}
+        onChange={e => setCustomer({ ...customer, phone: e.target.value })} />
+      <input placeholder="Email" value={customer.email}
+        onChange={e => setCustomer({ ...customer, email: e.target.value })} />
 
       <h3>Delivery Address</h3>
-      <input
-        placeholder="Address"
-        value={address.line1}
-        onChange={(e) => setAddress({ ...address, line1: e.target.value })}
-      />
-      <input
-        placeholder="City"
-        value={address.city}
-        onChange={(e) => setAddress({ ...address, city: e.target.value })}
-      />
-      <input
-        placeholder="State"
-        value={address.state}
-        onChange={(e) => setAddress({ ...address, state: e.target.value })}
-      />
-      <input
-        placeholder="Pincode"
-        value={address.pincode}
-        onChange={(e) => setAddress({ ...address, pincode: e.target.value })}
-      />
+      <input placeholder="Address" value={address.line1}
+        onChange={e => setAddress({ ...address, line1: e.target.value })} />
+      <input placeholder="City" value={address.city}
+        onChange={e => setAddress({ ...address, city: e.target.value })} />
+      <input placeholder="State" value={address.state}
+        onChange={e => setAddress({ ...address, state: e.target.value })} />
+      <input placeholder="Pincode" value={address.pincode}
+        onChange={e => setAddress({ ...address, pincode: e.target.value })} />
 
       <h3>Summary</h3>
       <p>Subtotal: {inr(subtotal)}</p>
-      <p>
-        Shipping:{' '}
-        {loadingShipping
-          ? 'Calculating…'
-          : shipping
-          ? `${shipping.label}: ${inr(shipping.amount)}`
-          : 'Enter pincode'}
-      </p>
-
+      <p>Shipping: {shipping ? inr(shipping.amount) : '—'}</p>
       <h3>Total: {inr(total)}</h3>
 
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
 
-      <button
-        onClick={placeOrder}
-        style={{ padding: 12, background: '#f59e0b' }}
-      >
+      <button onClick={placeOrder}
+        style={{ padding: 12, background: '#f59e0b' }}>
         Place Order
       </button>
     </main>
