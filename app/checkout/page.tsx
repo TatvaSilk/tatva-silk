@@ -7,7 +7,8 @@ import { getCart, CartLine } from '@/lib/cart'
 type Product = {
   id: string
   name: string | null
-  price: number
+  offer_price: number | null
+  original_price: number | null
 }
 
 type ShippingQuote = {
@@ -46,12 +47,15 @@ export default function CheckoutPage() {
 
   const [shipping, setShipping] = useState<ShippingQuote | null>(null)
 
-  /* ✅ Logged-in user */
+  /* ✅ Get logged-in user */
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session?.user) {
         setUserId(data.session.user.id)
-        setCustomer(c => ({ ...c, email: data.session?.user?.email || '' }))
+        setCustomer(c => ({
+          ...c,
+          email: data.session.user.email || '',
+        }))
       }
     })
   }, [supabase])
@@ -62,7 +66,7 @@ export default function CheckoutPage() {
     setCart(Array.isArray(c) ? c : [])
   }, [])
 
-  /* ✅ Load product prices (RUPEES) */
+  /* ✅ Load products (USE offer_price / original_price) */
   useEffect(() => {
     async function loadProducts() {
       if (!cart.length) return
@@ -71,37 +75,41 @@ export default function CheckoutPage() {
 
       const { data } = await supabase
         .from('products')
-        .select('id,name,price')
+        .select('id,name,offer_price,original_price')
         .in('id', ids)
 
       const map: Record<string, Product> = {}
       data?.forEach((p: any) => {
         map[p.id] = p
       })
+
       setProducts(map)
     }
 
     loadProducts()
   }, [cart, supabase])
 
-  /* ✅ Subtotal (display only) */
+  /* ✅ Subtotal (frontend display only) */
   const subtotal = useMemo(() => {
     return cart.reduce((sum, l) => {
       const p = products[l.productId]
-      return sum + (p?.price ?? 0) * l.qty
+      const price = p?.offer_price ?? p?.original_price ?? 0
+      return sum + price * l.qty
     }, 0)
   }, [cart, products])
 
-  /* ✅ Fake shipping (₹99) */
+  /* ✅ Shipping (₹99 after valid pincode) */
   useEffect(() => {
     if (address.pincode.length === 6) {
       setShipping({ label: 'Standard (India)', amount: 99 })
+    } else {
+      setShipping(null)
     }
   }, [address.pincode])
 
   const total = subtotal + (shipping?.amount ?? 0)
 
-  /* ✅ PLACE ORDER (OPTION A) */
+  /* ✅ PLACE ORDER (OPTION A – SAFE) */
   async function placeOrder() {
     setError(null)
 
@@ -151,22 +159,43 @@ export default function CheckoutPage() {
       <h1>Checkout</h1>
 
       <h3>Customer Details</h3>
-      <input placeholder="Name" value={customer.name}
-        onChange={e => setCustomer({ ...customer, name: e.target.value })} />
-      <input placeholder="Phone" value={customer.phone}
-        onChange={e => setCustomer({ ...customer, phone: e.target.value })} />
-      <input placeholder="Email" value={customer.email}
-        onChange={e => setCustomer({ ...customer, email: e.target.value })} />
+      <input
+        placeholder="Name"
+        value={customer.name}
+        onChange={e => setCustomer({ ...customer, name: e.target.value })}
+      />
+      <input
+        placeholder="Phone"
+        value={customer.phone}
+        onChange={e => setCustomer({ ...customer, phone: e.target.value })}
+      />
+      <input
+        placeholder="Email"
+        value={customer.email}
+        onChange={e => setCustomer({ ...customer, email: e.target.value })}
+      />
 
       <h3>Delivery Address</h3>
-      <input placeholder="Address" value={address.line1}
-        onChange={e => setAddress({ ...address, line1: e.target.value })} />
-      <input placeholder="City" value={address.city}
-        onChange={e => setAddress({ ...address, city: e.target.value })} />
-      <input placeholder="State" value={address.state}
-        onChange={e => setAddress({ ...address, state: e.target.value })} />
-      <input placeholder="Pincode" value={address.pincode}
-        onChange={e => setAddress({ ...address, pincode: e.target.value })} />
+      <input
+        placeholder="Address"
+        value={address.line1}
+        onChange={e => setAddress({ ...address, line1: e.target.value })}
+      />
+      <input
+        placeholder="City"
+        value={address.city}
+        onChange={e => setAddress({ ...address, city: e.target.value })}
+      />
+      <input
+        placeholder="State"
+        value={address.state}
+        onChange={e => setAddress({ ...address, state: e.target.value })}
+      />
+      <input
+        placeholder="Pincode"
+        value={address.pincode}
+        onChange={e => setAddress({ ...address, pincode: e.target.value })}
+      />
 
       <h3>Summary</h3>
       <p>Subtotal: {inr(subtotal)}</p>
@@ -175,8 +204,10 @@ export default function CheckoutPage() {
 
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
 
-      <button onClick={placeOrder}
-        style={{ padding: 12, background: '#f59e0b' }}>
+      <button
+        onClick={placeOrder}
+        style={{ padding: 12, background: '#f59e0b' }}
+      >
         Place Order
       </button>
     </main>
