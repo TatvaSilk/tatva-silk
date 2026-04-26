@@ -10,18 +10,26 @@ export default async function AdminOrdersPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // ✅ Explicit select + explicit order
+  // ✅ IMPORTANT: Explicitly select shipping fields
   const { data: orders, error } = await supabase
     .from('orders')
     .select(`
       id,
       order_no,
-      subtotal,
-      delivery_fee,
-      grand_total,
+      created_at,
       status,
       payment_status,
-      created_at
+      subtotal,
+      delivery_fee,
+      discount,
+      grand_total,
+      shipping_name,
+      shipping_phone,
+      shipping_address_line1,
+      shipping_address_line2,
+      shipping_city,
+      shipping_state,
+      shipping_pin
     `)
     .order('created_at', { ascending: false })
 
@@ -33,7 +41,13 @@ export default async function AdminOrdersPage() {
 
   const { data: items } = await supabase
     .from('order_items')
-    .select('*')
+    .select(`
+      id,
+      order_id,
+      name,
+      price,
+      qty
+    `)
     .in('order_id', orderIds)
 
   return (
