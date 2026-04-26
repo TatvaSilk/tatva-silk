@@ -38,8 +38,8 @@ export default function CheckoutPage() {
   })
 
   const [address, setAddress] = useState({
-    line1: '',
-    line2: '',
+    line1: '',     // Street / house
+    village: '',   // ✅ NEW FIELD
     city: '',
     state: '',
     pincode: '',
@@ -47,7 +47,7 @@ export default function CheckoutPage() {
 
   const [shipping, setShipping] = useState<ShippingQuote | null>(null)
 
-  /* ✅ Get logged-in user */
+  /* ✅ User */
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session?.user) {
@@ -60,17 +60,16 @@ export default function CheckoutPage() {
     })
   }, [supabase])
 
-  /* ✅ Load cart */
+  /* ✅ Cart */
   useEffect(() => {
     const c = getCart()
     setCart(Array.isArray(c) ? c : [])
   }, [])
 
-  /* ✅ Load products */
+  /* ✅ Products */
   useEffect(() => {
     async function loadProducts() {
       if (!cart.length) return
-
       const ids = cart.map(l => l.productId)
 
       const { data } = await supabase
@@ -82,14 +81,13 @@ export default function CheckoutPage() {
       data?.forEach((p: any) => {
         map[p.id] = p
       })
-
       setProducts(map)
     }
 
     loadProducts()
   }, [cart, supabase])
 
-  /* ✅ Auto-fill city/state from pincodes table */
+  /* ✅ Pincode auto‑fill */
   useEffect(() => {
     async function lookupPincode() {
       if (address.pincode.length !== 6) return
@@ -125,14 +123,19 @@ export default function CheckoutPage() {
 
   const total = subtotal + (shipping?.amount ?? 0)
 
-  /* ✅ PLACE ORDER (uses existing backend) */
+  /* ✅ PLACE ORDER */
   async function placeOrder() {
     setError(null)
 
     if (!userId) return setError('Please login')
     if (!customer.name || !customer.phone) return setError('Enter name & phone')
-    if (!address.line1 || !address.city || !address.state || !address.pincode)
-      return setError('Complete address')
+    if (
+      !address.line1 ||
+      !address.village ||
+      !address.city ||
+      !address.state ||
+      !address.pincode
+    ) return setError('Complete address')
     if (!shipping) return setError('Invalid pincode')
 
     const res = await fetch('/api/orders/create', {
@@ -174,26 +177,22 @@ export default function CheckoutPage() {
       <h1>Checkout</h1>
 
       <h3>Customer Details</h3>
-      <input value={customer.name}
-        placeholder="Name"
+      <input placeholder="Name" value={customer.name}
         onChange={e => setCustomer({ ...customer, name: e.target.value })} />
-      <input value={customer.phone}
-        placeholder="Phone"
+      <input placeholder="Phone" value={customer.phone}
         onChange={e => setCustomer({ ...customer, phone: e.target.value })} />
-      <input value={customer.email}
-        placeholder="Email"
+      <input placeholder="Email" value={customer.email}
         onChange={e => setCustomer({ ...customer, email: e.target.value })} />
 
       <h3>Delivery Address</h3>
-      <input placeholder="Address"
+      <input placeholder="Street / House"
         value={address.line1}
         onChange={e => setAddress({ ...address, line1: e.target.value })} />
-      <input placeholder="City"
-        value={address.city}
-        readOnly />
-      <input placeholder="State"
-        value={address.state}
-        readOnly />
+      <input placeholder="Village / Town"
+        value={address.village}
+        onChange={e => setAddress({ ...address, village: e.target.value })} />
+      <input placeholder="City" value={address.city} readOnly />
+      <input placeholder="State" value={address.state} readOnly />
       <input placeholder="Pincode"
         value={address.pincode}
         onChange={e => setAddress({ ...address, pincode: e.target.value })} />
