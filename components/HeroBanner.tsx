@@ -1,167 +1,125 @@
-// components/HeroBanner.tsx
-'use client';
+'use client'
 
-import Image from 'next/image';
-import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image'
+import Link from 'next/link'
+import { useEffect, useRef, useState } from 'react'
+import { createClient } from '@supabase/supabase-js'
 
 type Slide = {
-  id: string;
-  title: string;
-  text: string;
-  ctaLabel: string;
-  ctaHref: string;
-  img: string;
-};
+  id: string
+  title: string
+  text: string
+  cta_label: string
+  cta_href: string
+  img: string
+}
 
-const SLIDES: Slide[] = [
-  {
-    id: 'one',
-    title: 'Fast shipping on beautiful silk sarees',
-    text: 'Discover Tatva Silk collections curated from Billimora, Navsari.',
-    ctaLabel: 'Shop Now',
-    ctaHref: '/products',
-    img: 'https://images.unsplash.com/photo-1544441893-675973e31985?q=80&w=1600&auto=format&fit=crop',
-  },
-  {
-    id: 'two',
-    title: 'Save on festive collections',
-    text: 'Limited‑time offers on Banarasi & Kanjivaram selections.',
-    ctaLabel: 'View Offers',
-    ctaHref: '/products?tag=deal',
-    img: 'https://images.unsplash.com/photo-1604881982416-b8ac5a7f3f5b?q=80&w=1600&auto=format&fit=crop',
-  },
-  {
-    id: 'three',
-    title: 'Gifts under ₹2,000',
-    text: 'Dupattas, stoles, and accessories crafted in silk.',
-    ctaLabel: 'Browse Gifts',
-    ctaHref: '/products?category=gifts',
-    img: 'https://images.unsplash.com/photo-1622371235100-f7a2c2a19b36?q=80&w=1600&auto=format&fit=crop',
-  },
-];
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 export default function HeroBanner() {
-  const [idx, setIdx] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const total = SLIDES.length;
+  const [slides, setSlides] = useState<Slide[]>([])
+  const [idx, setIdx] = useState(0)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const total = slides.length
 
   function go(to: number) {
-    setIdx(((to % total) + total) % total); // safe wrap
+    if (!total) return
+    setIdx(((to % total) + total) % total)
   }
+
   function next() {
-    go(idx + 1);
+    go(idx + 1)
   }
+
   function start() {
-    stop();
-    timerRef.current = setInterval(next, 4500);
+    stop()
+    timerRef.current = setInterval(next, 4500)
   }
+
   function stop() {
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = null;
+    if (timerRef.current) clearInterval(timerRef.current)
+    timerRef.current = null
   }
 
   useEffect(() => {
-    start();
-    return stop;
-    // restart interval whenever the user clicks a dot
-  }, [idx]);
+    supabase
+      .from('home_banners')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order')
+      .then(({ data }) => {
+        if (data) setSlides(data)
+      })
+  }, [])
+
+  useEffect(() => {
+    if (slides.length) start()
+    return stop
+  }, [idx, slides.length])
+
+  if (!slides.length) return null
 
   return (
     <div className="container" style={{ marginTop: 14, marginBottom: 16 }}>
-      <div
-        className="hero"
-        onMouseEnter={stop}
-        onMouseLeave={start}
-        aria-label="Homepage promotions"
-      >
-        <div className="hero-inner" style={{ position: 'relative', height: 320 }}>
-          {/* Slides track */}
+      <div onMouseEnter={stop} onMouseLeave={start}>
+        <div style={{ position: 'relative', height: 320, overflow: 'hidden', borderRadius: 12 }}>
           <div
             style={{
-              position: 'absolute',
-              inset: 0,
-              overflow: 'hidden',
-              borderRadius: 12,
+              display: 'flex',
+              width: `${total * 100}%`,
+              height: '100%',
+              transform: `translateX(-${idx * (100 / total)}%)`,
+              transition: 'transform .6s ease',
             }}
           >
-            <div
-              style={{
-                display: 'flex',
-                width: `${total * 100}%`,
-                height: '100%',
-                transform: `translateX(-${idx * (100 / total)}%)`,
-                transition: 'transform .6s ease',
-              }}
-            >
-              {SLIDES.map((s, i) => (
+            {slides.map((s, i) => (
+              <div key={s.id} style={{ minWidth: `${100 / total}%`, position: 'relative' }}>
+                <Image
+                  src={s.img}
+                  alt={s.title}
+                  fill
+                  priority={i === 0}
+                  style={{ objectFit: 'cover' }}
+                />
+
                 <div
-                  key={s.id}
                   style={{
-                    minWidth: `${100 / total}%`,
-                    position: 'relative',
+                    position: 'absolute',
+                    left: 20,
+                    top: 20,
+                    maxWidth: 520,
+                    background: 'rgba(255,255,255,.9)',
+                    borderRadius: 8,
+                    padding: 14,
                   }}
                 >
-                  {/* Background image */}
-                  <Image
-                    src={s.img}
-                    alt={s.title}
-                    fill
-                    sizes="(max-width: 1024px) 100vw, 1200px"
-                    style={{ objectFit: 'cover' }}
-                    priority={i === 0}
-                  />
-
-                  {/* Headline panel */}
-                  <div
-                    className="hero-content"
-                    style={{
-                      position: 'absolute',
-                      left: 20,
-                      top: 20,
-                      maxWidth: 520,
-                      background: 'rgba(255,255,255,.9)',
-                      borderRadius: 8,
-                      padding: 14,
-                      border: '1px solid var(--border)',
-                    }}
-                  >
-                    <h2 style={{ margin: '0 0 6px' }}>{s.title}</h2>
-                    <p style={{ margin: '0 0 10px', color: 'var(--muted)' }}>{s.text}</p>
-                    <Link href={s.ctaHref} className="cta">
-                      {s.ctaLabel}
-                    </Link>
-                  </div>
+                  <h2>{s.title}</h2>
+                  <p style={{ color: '#555' }}>{s.text}</p>
+                  <Link href={s.cta_href} className="cta">
+                    {s.cta_label}
+                  </Link>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
 
-          {/* Dots */}
-          <div
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 10,
-              display: 'flex',
-              gap: 6,
-              justifyContent: 'center',
-            }}
-            aria-label="Slide indicators"
-          >
-            {SLIDES.map((_, i) => (
+          {/* dots */}
+          <div style={{ position: 'absolute', bottom: 10, width: '100%', display: 'flex', justifyContent: 'center', gap: 6 }}>
+            {slides.map((_, i) => (
               <button
                 key={i}
                 onClick={() => go(i)}
-                aria-label={`Go to slide ${i + 1}`}
                 style={{
                   width: 9,
                   height: 9,
                   borderRadius: 999,
                   border: 'none',
-                  cursor: 'pointer',
                   background: i === idx ? '#334155' : '#cbd5e1',
+                  cursor: 'pointer',
                 }}
               />
             ))}
@@ -169,5 +127,5 @@ export default function HeroBanner() {
         </div>
       </div>
     </div>
-  );
+  )
 }
