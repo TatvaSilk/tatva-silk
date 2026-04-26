@@ -10,9 +10,19 @@ export default async function AdminOrdersPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  // ✅ Explicit select + explicit order
   const { data: orders, error } = await supabase
     .from('orders')
-    .select('*')
+    .select(`
+      id,
+      order_no,
+      subtotal,
+      delivery_fee,
+      grand_total,
+      status,
+      payment_status,
+      created_at
+    `)
     .order('created_at', { ascending: false })
 
   if (error) {
