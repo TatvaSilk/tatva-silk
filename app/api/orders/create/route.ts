@@ -15,7 +15,7 @@ export async function POST(req: Request) {
       address,
     } = body
 
-    // ✅ SAFE VALIDATION (NO MORE FALSE ERRORS)
+    // ✅ Safe validation
     if (
       !customer_id ||
       !Array.isArray(items) ||
@@ -34,25 +34,24 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // ✅ CREATE ORDER
+    // ✅ 1. Create Order
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
         order_no: `TS-${Date.now()}`,
         customer_id,
         items_count: items.length,
-        subtotal: amount,                 // ✅ RUPEES
-        delivery_fee: delivery_fee ?? 0,  // ✅ RUPEES
+        subtotal: amount,
+        delivery_fee,
         discount: 0,
-        grand_total: amount + (delivery_fee ?? 0),
+        grand_total: amount + delivery_fee,
         payment_status: payment_status ?? 'cod_pending',
         status: 'placed',
 
-        // ✅ SHIPPING DETAILS
         shipping_name: customer.name,
         shipping_phone: customer.phone,
         shipping_address_line1: address.line1,     // Street / House
-        shipping_address_line2: address.village,   // ✅ Village / Town
+        shipping_address_line2: address.village,   // Village / Town
         shipping_city: address.city,
         shipping_state: address.state,
         shipping_pin: address.pincode,
@@ -67,12 +66,12 @@ export async function POST(req: Request) {
       )
     }
 
-    // ✅ INSERT ORDER ITEMS
+    // ✅ 2. Insert Order Items
     const orderItems = items.map((item: any) => ({
       order_id: order.id,
       product_id: item.productId,
       name: item.name,
-      price: item.price,   // ✅ RUPEES
+      price: item.price,
       qty: item.qty,
       line_total: item.price * item.qty,
     }))
@@ -88,6 +87,42 @@ export async function POST(req: Request) {
       )
     }
 
+    // ✅ 3. 🔔 ADMIN EMAIL NOTIFICATION (Resend)
+    try {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'TatvaSilk Orders <orders@tatvasilk.com>',
+          to: [process.env.ADMIN_EMAIL],
+          subject: `🛒 New Order Received: ${order.order_no}`,
+          html: `
+            <h2>New Order Received</h2>
+            <p><strong>Order No:</strong> ${order.order_no}</p>
+            <p><strong>Total:</strong> ₹${order.grand_total}</p>
+            <p><strong>Customer:</strong> ${customer.name}</p>
+            <p><strong>Phone:</strong> ${customer.phone}</p>
+
+            <hr />
+
+            <h3>Shipping Address</h3>
+            <p>
+              ${address.line1}<br/>
+              ${address.village}<br/>
+              ${address.city}, ${address.state} - ${address.pincode}
+            </p>
+          `,
+        }),
+      })
+    } catch (emailError) {
+      // ❗ Do NOT fail order if email fails
+      console.error('Admin email failed:', emailError)
+    }
+
+    // ✅ 4. Success Response
     return NextResponse.json({
       success: true,
       orderNo: order.order_no,
