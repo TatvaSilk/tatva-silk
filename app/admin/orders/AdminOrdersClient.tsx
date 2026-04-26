@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatINR } from '@/lib/money'
 
-',const STATUS_OPTIONS = [
+const STATUS_OPTIONS = [
+  'placed',
   'paid',
   'packed',
   'shipped',
@@ -20,14 +21,16 @@ export default function AdminOrdersClient({
   items: any[]
 }) {
   const router = useRouter()
-
   const [statusState, setStatusState] = useState<Record<string, string>>({})
 
-  // group items by order
+  // ✅ group items by order_id
   const itemsByOrder: Record<string, any[]> = {}
+
   items.forEach(item => {
     const key = String(item.order_id)
-    if (!itemsByOrder[key]) itemsByOrder[key] = []
+    if (!itemsByOrder[key]) {
+      itemsByOrder[key] = []
+    }
     itemsByOrder[key].push(item)
   })
 
@@ -90,7 +93,7 @@ export default function AdminOrdersClient({
               <span>Status: {order.status}</span>
             </div>
 
-            {/* DATE */}
+            {/* ORDER DATE */}
             <div style={{ fontSize: 12, color: '#94a3b8' }}>
               Order Date:{' '}
               {new Date(order.created_at).toLocaleString('en-IN')}
