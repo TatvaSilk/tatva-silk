@@ -1,4 +1,6 @@
-'use client''use clientEffect, useState } from 'react'
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 
@@ -44,7 +46,6 @@ export default function AdminBannersPage() {
 
   async function remove(id: string) {
     if (!confirm('Delete this banner?')) return
-
     await supabase.from('home_banners').delete().eq('id', id)
     loadBanners()
   }
@@ -79,19 +80,7 @@ export default function AdminBannersPage() {
         }}
       >
         <h1 style={{ fontSize: 22 }}>🏷️ Home Banners</h1>
-        <Link
-          href="/admin/banners/new"
-          style={{
-            background: '#f59e0b',
-            padding: '8px 14px',
-            borderRadius: 8,
-            fontWeight: 700,
-            color: '#111',
-            textDecoration: 'none',
-          }}
-        >
-          + New Banner
-        </Link>
+        <Link href="/admin/banners/new">+ New Banner</Link>
       </div>
 
       {banners.length === 0 ? (
@@ -107,7 +96,7 @@ export default function AdminBannersPage() {
           }}
         >
           <thead>
-            <tr style={{ background: '#020617', borderBottom: '1px solid #1f2937' }}>
+            <tr style={{ borderBottom: '1px solid #1f2937' }}>
               <th style={th}>Order</th>
               <th style={th}>Title</th>
               <th style={th}>Active</th>
@@ -129,11 +118,7 @@ export default function AdminBannersPage() {
                 }}
               >
                 <td style={td}>{b.sort_order}</td>
-
-                <td style={td}>
-                  <strong>{b.title}</strong>
-                </td>
-
+                <td style={td}><strong>{b.title}</strong></td>
                 <td style={td}>
                   <input
                     type="checkbox"
@@ -141,21 +126,12 @@ export default function AdminBannersPage() {
                     onChange={e => toggleActive(b.id, e.target.checked)}
                   />
                 </td>
-
                 <td style={{ ...td, textAlign: 'right' }}>
-                  <Link
-                    href={`/admin/banners/${b.id}`}
-                    style={{
-                      color: '#38bdf8',
-                      marginRight: 12,
-                      textDecoration: 'none',
-                    }}
-                  >
-                    Edit
-                  </Link>
+                  <Link href={`/admin/banners/${b.id}`}>Edit</Link>
                   <button
                     onClick={() => remove(b.id)}
                     style={{
+                      marginLeft: 12,
                       background: 'none',
                       border: 'none',
                       color: '#fda4af',
@@ -178,7 +154,8 @@ export default function AdminBannersPage() {
   )
 }
 
-/* ===== Styles ===== */
+/* ===== styles ===== */
+
 const th: React.CSSProperties = {
   padding: 12,
   textAlign: 'left',
