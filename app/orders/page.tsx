@@ -10,14 +10,11 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-/* ========== TYPES ========== */
+/* ========= TYPES ========= */
 
 type ProductImage = {
   url: string
-}
-
-type ProductJoin = {
-  product_images: ProductImage[]
+  sort_order: number
 }
 
 type OrderItem = {
@@ -26,7 +23,7 @@ type OrderItem = {
   price: number
   qty: number
   product_id: string
-  product: ProductJoin[] | null
+  product_images: ProductImage[]
 }
 
 type Order = {
@@ -38,7 +35,7 @@ type Order = {
   order_items: OrderItem[]
 }
 
-/* ========== PAGE ========== */
+/* ========= PAGE ========= */
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -60,14 +57,15 @@ export default function OrdersPage() {
           price,
           qty,
           product_id,
-          product:products (
-            product_images ( url, sort_order )
+          product_images:product_images (
+            url,
+            sort_order
           )
         )
       `)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
-        setOrders((data ?? []) as Order[])
+        setOrders(data ?? [])
         setLoading(false)
       })
   }, [])
@@ -75,10 +73,10 @@ export default function OrdersPage() {
   const filteredOrders = useMemo(() => {
     if (!search) return orders
     const q = search.toLowerCase()
-    return orders.filter(order =>
-      order.order_no.toLowerCase().includes(q) ||
-      order.order_items.some(item =>
-        item.name.toLowerCase().includes(q)
+    return orders.filter(o =>
+      o.order_no.toLowerCase().includes(q) ||
+      o.order_items.some(i =>
+        i.name.toLowerCase().includes(q)
       )
     )
   }, [orders, search])
@@ -91,15 +89,12 @@ export default function OrdersPage() {
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
       <h1 style={{ fontSize: 26, marginBottom: 12 }}>Your Orders</h1>
 
-      {/* SEARCH */}
       <input
-        placeholder="Search by order number or product name"
+        placeholder="Search orders"
         value={search}
         onChange={e => setSearch(e.target.value)}
         style={searchBox}
       />
-
-      {filteredOrders.length === 0 && <p>No orders found.</p>}
 
       {filteredOrders.map(order => (
         <div key={order.id} style={orderCard}>
@@ -108,26 +103,20 @@ export default function OrdersPage() {
             <Header label="ORDER PLACED">
               {new Date(order.created_at).toLocaleDateString()}
             </Header>
-            <Header label="TOTAL">
-              ₹{order.grand_total}
-            </Header>
-            <Header label="ORDER #">
-              {order.order_no}
-            </Header>
-            <Header label="STATUS">
-              {order.status}
-            </Header>
+            <Header label="TOTAL">₹{order.grand_total}</Header>
+            <Header label="ORDER #">{order.order_no}</Header>
+            <Header label="STATUS">{order.status}</Header>
           </div>
 
           {/* ITEMS */}
           {order.order_items.map(item => {
             const imageUrl =
-              item.product?.[0]?.product_images?.[0]?.url
+              item.product_images?.sort((a, b) => a.sort_order - b.sort_order)[0]?.url
 
             return (
               <div key={item.id} style={itemRow}>
                 {/* IMAGE */}
-                <div style={{ width: 90, height: 90, position: 'relative' }}>
+                <div style={{ position: 'relative', width: 90, height: 90 }}>
                   {imageUrl ? (
                     <Image
                       src={imageUrl}
@@ -143,11 +132,7 @@ export default function OrdersPage() {
                 {/* DETAILS */}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{item.name}</div>
-
-                  <div style={{ marginTop: 6 }}>
-                    ₹{item.price} × {item.qty}
-                  </div>
-
+                  <div>₹{item.price} × {item.qty}</div>
                   <strong>₹{item.price * item.qty}</strong>
 
                   <div style={actionsRow}>
@@ -164,7 +149,7 @@ export default function OrdersPage() {
                       onClick={() => reorderItem(item)}
                       style={linkBtn}
                     >
-                      🔁 Re-order
+                      🔁 Re‑order
                     </button>
 
                     <span style={{ color: '#6b7280' }}>
@@ -181,15 +166,9 @@ export default function OrdersPage() {
   )
 }
 
-/* ========== HELPERS ========== */
+/* ========= HELPERS ========= */
 
-function Header({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
+function Header({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <div style={headerLabel}>{label}</div>
@@ -209,14 +188,12 @@ function downloadInvoice(orderId: string) {
   window.open(`/api/orders/${orderId}/invoice`, '_blank')
 }
 
-/* ========== STYLES ========== */
+/* ========= STYLES ========= */
 
 const searchBox: React.CSSProperties = {
   width: '100%',
   padding: 10,
   marginBottom: 20,
-  borderRadius: 6,
-  border: '1px solid #ccc',
 }
 
 const orderCard: React.CSSProperties = {
@@ -231,7 +208,6 @@ const headerGrid: React.CSSProperties = {
   background: '#f3f4f6',
   display: 'grid',
   gridTemplateColumns: 'repeat(4, 1fr)',
-  gap: 12,
   fontSize: 13,
 }
 
@@ -256,7 +232,6 @@ const headerLabel: React.CSSProperties = {
 const linkBtn: React.CSSProperties = {
   background: 'none',
   border: 'none',
-  padding: 0,
   color: '#2563eb',
   cursor: 'pointer',
 }
@@ -267,3 +242,4 @@ const imgPlaceholder: React.CSSProperties = {
   background: '#e5e7eb',
   borderRadius: 6,
 }
+``
