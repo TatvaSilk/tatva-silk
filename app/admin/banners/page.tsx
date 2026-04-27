@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState }/link'import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -45,11 +46,7 @@ export default function AdminBannersPage() {
   async function remove(id: string) {
     if (!confirm('Delete this banner?')) return
 
-    await supabase
-      .from('home_banners')
-      .delete()
-      .eq('id', id)
-
+    await supabase.from('home_banners').delete().eq('id', id)
     loadBanners()
   }
 
@@ -63,9 +60,15 @@ export default function AdminBannersPage() {
 
   return (
     <main style={{ padding: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginBottom: 16,
+        }}
+      >
         <h1 style={{ fontSize: 20 }}>Home Banners</h1>
-        /admin/banners/newNew Banner</Link>
+        <Link href="/admin/banners/new">New Banner</Link>
       </div>
 
       {banners.length === 0 ? (
@@ -73,11 +76,11 @@ export default function AdminBannersPage() {
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid #374151', textAlign: 'left' }}>
-              <th>Title</th>
-              <th>Image</th>
-              <th>Active</th>
-              <th>Order</th>
+            <tr style={{ borderBottom: '1px solid #374151' }}>
+              <th align="left">Title</th>
+              <th align="left">Image URL</th>
+              <th align="left">Active</th>
+              <th align="left">Order</th>
               <th></th>
             </tr>
           </thead>
@@ -85,19 +88,21 @@ export default function AdminBannersPage() {
             {banners.map(b => (
               <tr key={b.id} style={{ borderBottom: '1px solid #1f2937' }}>
                 <td>{b.title}</td>
-                <td style={{ maxWidth: 200 }}>
+                <td style={{ maxWidth: 240, wordBreak: 'break-all' }}>
                   {b.img}
                 </td>
                 <td>
                   <input
                     type="checkbox"
                     checked={b.is_active}
-                    onChange={e => toggleActive(b.id, e.target.checked)}
+                    onChange={e =>
+                      toggleActive(b.id, e.target.checked)
+                    }
                   />
                 </td>
                 <td>{b.sort_order}</td>
-                <td style={{ textAlign: 'right' }}>
-                  /admin/banners/${b.id}Edit</Link>
+                <td align="right">
+                  <Link href={`/admin/banners/${b.id}`}>Edit</Link>
                   <button
                     onClick={() => remove(b.id)}
                     style={{ marginLeft: 8 }}
@@ -113,4 +118,3 @@ export default function AdminBannersPage() {
     </main>
   )
 }
-
