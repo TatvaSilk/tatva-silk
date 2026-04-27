@@ -9,11 +9,15 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-/* ================= TYPES ================= */
+/* ========== TYPES ========== */
 
-type ProductImage = { url: string }
+type ProductImage = {
+  url: string
+}
 
-type ProductJoin = { product_images: ProductImage[] }
+type ProductJoin = {
+  product_images: ProductImage[]
+}
 
 type OrderItem = {
   id: string
@@ -33,7 +37,7 @@ type Order = {
   order_items: OrderItem[]
 }
 
-/* ================= PAGE ================= */
+/* ========== PAGE ========== */
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -62,7 +66,7 @@ export default function OrdersPage() {
       `)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
-        setOrders(data ?? [])
+        setOrders((data ?? []) as Order[])
         setLoading(false)
       })
   }, [])
@@ -70,9 +74,11 @@ export default function OrdersPage() {
   const filteredOrders = useMemo(() => {
     if (!search) return orders
     const q = search.toLowerCase()
-    return orders.filter(o =>
-      o.order_no.toLowerCase().includes(q) ||
-      o.order_items.some(i => i.name.toLowerCase().includes(q))
+    return orders.filter(order =>
+      order.order_no.toLowerCase().includes(q) ||
+      order.order_items.some(item =>
+        item.name.toLowerCase().includes(q)
+      )
     )
   }, [orders, search])
 
@@ -84,6 +90,7 @@ export default function OrdersPage() {
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
       <h1 style={{ fontSize: 26, marginBottom: 12 }}>Your Orders</h1>
 
+      {/* SEARCH */}
       <input
         placeholder="Search by order number or product name"
         value={search}
@@ -116,6 +123,7 @@ export default function OrdersPage() {
               background: '#f3f4f6',
               display: 'grid',
               gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 12,
               fontSize: 13,
             }}
           >
@@ -129,7 +137,8 @@ export default function OrdersPage() {
 
           {/* ITEMS */}
           {order.order_items.map(item => {
-            const imageUrl = item.product?.[0]?.product_images?.[0]?.url
+            const imageUrl =
+              item.product?.[0]?.product_images?.[0]?.url || null
 
             return (
               <div
@@ -141,7 +150,7 @@ export default function OrdersPage() {
                   borderTop: '1px solid #eee',
                 }}
               >
-                {/* IMAGE */}
+                {/* IMAGE (PLAIN IMG — SAFE) */}
                 <div style={{ width: 90, height: 90 }}>
                   {imageUrl ? (
                     <img
@@ -152,6 +161,7 @@ export default function OrdersPage() {
                         height: 90,
                         objectFit: 'cover',
                         borderRadius: 6,
+                        display: 'block',
                       }}
                     />
                   ) : (
@@ -169,22 +179,32 @@ export default function OrdersPage() {
                 {/* DETAILS */}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{item.name}</div>
+
                   <div style={{ marginTop: 6 }}>
                     ₹{item.price} × {item.qty}
                   </div>
+
                   <strong>₹{item.price * item.qty}</strong>
 
-                  <div style={{ marginTop: 10, display: 'flex', gap: 16 }}>
+                  <div
+                    style={{
+                      marginTop: 10,
+                      display: 'flex',
+                      gap: 16,
+                    }}
+                  >
                     <Link href={`/orders/${order.id}`}>View order</Link>
 
                     <button
-                      onClick={() => window.open(`/api/orders/${order.id}/invoice`)}
+                      onClick={() =>
+                        window.open(`/api/orders/${order.id}/invoice`)
+                      }
                       style={{
                         background: 'none',
                         border: 'none',
+                        padding: 0,
                         color: '#2563eb',
                         cursor: 'pointer',
-                        padding: 0,
                       }}
                     >
                       Download invoice
@@ -192,21 +212,33 @@ export default function OrdersPage() {
 
                     <button
                       onClick={() => {
-                        const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-                        cart.push({ productId: item.product_id, qty: item.qty })
-                        localStorage.setItem('cart', JSON.stringify(cart))
+                        const cart = JSON.parse(
+                          localStorage.getItem('cart') || '[]'
+                        )
+                        cart.push({
+                          productId: item.product_id,
+                          qty: item.qty,
+                        })
+                        localStorage.setItem(
+                          'cart',
+                          JSON.stringify(cart)
+                        )
                         window.location.href = '/checkout'
                       }}
                       style={{
                         background: 'none',
                         border: 'none',
+                        padding: 0,
                         color: '#2563eb',
                         cursor: 'pointer',
-                        padding: 0,
                       }}
                     >
                       Re‑order
                     </button>
+
+                    <span style={{ color: '#6b7280' }}>
+                      Track order
+                    </span>
                   </div>
                 </div>
               </div>
@@ -218,9 +250,15 @@ export default function OrdersPage() {
   )
 }
 
-/* ================= UI ================= */
+/* ========== HELPERS ========== */
 
-function Header({ label, children }: { label: string; children: React.ReactNode }) {
+function Header({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
   return (
     <div>
       <div style={{ fontSize: 11, color: '#6b7280' }}>{label}</div>
