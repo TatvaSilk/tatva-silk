@@ -10,11 +10,14 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-/* ================= TYPES ================= */
+/* ========== TYPES ========== */
 
 type ProductImage = {
   url: string
-  sort_order: number
+}
+
+type ProductJoin = {
+  product_images: ProductImage[]
 }
 
 type OrderItem = {
@@ -23,7 +26,7 @@ type OrderItem = {
   price: number
   qty: number
   product_id: string
-  product_images: ProductImage[]
+  product: ProductJoin[] | null
 }
 
 type Order = {
@@ -35,7 +38,7 @@ type Order = {
   order_items: OrderItem[]
 }
 
-/* ================= PAGE ================= */
+/* ========== PAGE ========== */
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -57,15 +60,14 @@ export default function OrdersPage() {
           price,
           qty,
           product_id,
-          product_images:product_images (
-            url,
-            sort_order
+          product:products (
+            product_images ( url, sort_order )
           )
         )
       `)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
-        setOrders(data ?? [])
+        setOrders((data ?? []) as Order[])
         setLoading(false)
       })
   }, [])
@@ -106,17 +108,21 @@ export default function OrdersPage() {
             <Header label="ORDER PLACED">
               {new Date(order.created_at).toLocaleDateString()}
             </Header>
-            <Header label="TOTAL">₹{order.grand_total}</Header>
-            <Header label="ORDER #">{order.order_no}</Header>
-            <Header label="STATUS">{order.status}</Header>
+            <Header label="TOTAL">
+              ₹{order.grand_total}
+            </Header>
+            <Header label="ORDER #">
+              {order.order_no}
+            </Header>
+            <Header label="STATUS">
+              {order.status}
+            </Header>
           </div>
 
           {/* ITEMS */}
           {order.order_items.map(item => {
             const imageUrl =
-              item.product_images
-                ?.sort((a, b) => a.sort_order - b.sort_order)[0]
-                ?.url
+              item.product?.[0]?.product_images?.[0]?.url
 
             return (
               <div key={item.id} style={itemRow}>
@@ -158,7 +164,7 @@ export default function OrdersPage() {
                       onClick={() => reorderItem(item)}
                       style={linkBtn}
                     >
-                      🔁 Re‑order
+                      🔁 Re-order
                     </button>
 
                     <span style={{ color: '#6b7280' }}>
@@ -175,7 +181,7 @@ export default function OrdersPage() {
   )
 }
 
-/* ================= HELPERS ================= */
+/* ========== HELPERS ========== */
 
 function Header({
   label,
@@ -194,10 +200,7 @@ function Header({
 
 function reorderItem(item: OrderItem) {
   const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-  cart.push({
-    productId: item.product_id,
-    qty: item.qty,
-  })
+  cart.push({ productId: item.product_id, qty: item.qty })
   localStorage.setItem('cart', JSON.stringify(cart))
   window.location.href = '/checkout'
 }
@@ -206,7 +209,7 @@ function downloadInvoice(orderId: string) {
   window.open(`/api/orders/${orderId}/invoice`, '_blank')
 }
 
-/* ================= STYLES ================= */
+/* ========== STYLES ========== */
 
 const searchBox: React.CSSProperties = {
   width: '100%',
@@ -228,6 +231,7 @@ const headerGrid: React.CSSProperties = {
   background: '#f3f4f6',
   display: 'grid',
   gridTemplateColumns: 'repeat(4, 1fr)',
+  gap: 12,
   fontSize: 13,
 }
 
@@ -252,6 +256,7 @@ const headerLabel: React.CSSProperties = {
 const linkBtn: React.CSSProperties = {
   background: 'none',
   border: 'none',
+  padding: 0,
   color: '#2563eb',
   cursor: 'pointer',
 }
