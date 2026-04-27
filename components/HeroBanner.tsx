@@ -1,6 +1,4 @@
-'use client'
-
-import Image from 'next/image'
+'use client''use client 'next/image'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
@@ -33,9 +31,7 @@ export default function HeroBanner() {
 
   function start() {
     stop()
-    timerRef.current = setInterval(() => {
-      go(idx + 1)
-    }, 4500)
+    timerRef.current = setInterval(() => go(idx + 1), 4500)
   }
 
   function stop() {
@@ -45,20 +41,14 @@ export default function HeroBanner() {
     }
   }
 
-  // ✅ Fetch banners
+  // ✅ Load banner data
   useEffect(() => {
     supabase
       .from('home_banners')
       .select('*')
       .eq('is_active', true)
       .order('sort_order')
-      .then(({ data, error }) => {
-        if (error) {
-          console.error('Hero banner fetch error:', error)
-        } else {
-          setSlides(data ?? [])
-        }
-      })
+      .then(({ data }) => setSlides(data ?? []))
   }, [])
 
   useEffect(() => {
@@ -75,8 +65,8 @@ export default function HeroBanner() {
           style={{
             position: 'relative',
             height: 320,
-            borderRadius: 12,
             overflow: 'hidden',
+            borderRadius: 12,
           }}
         >
           <div
@@ -88,30 +78,27 @@ export default function HeroBanner() {
               transition: 'transform 0.6s ease',
             }}
           >
-            {slides.map((s, i) => (
+            {slides.map((s) => (
               <div
                 key={s.id}
-                style={{
-                  minWidth: `${100 / total}%`,
-                  position: 'relative',
-                }}
+                style={{ minWidth: `${100 / total}%`, position: 'relative' }}
               >
                 {/* ✅ IMAGE */}
                 <Image
                   src={s.img}
                   alt={s.title}
                   fill
-                  sizes="100vw"
+                  sizes="(max-width: 768px) 100vw, 1200px"
                   style={{ objectFit: 'cover' }}
-                  priority={i === 0}
+                  priority
                 />
 
-                {/* ✅ CONTENT CARD */}
+                {/* ✅ CONTENT */}
                 <div
                   style={{
                     position: 'absolute',
-                    left: 20,
                     top: 20,
+                    left: 20,
                     maxWidth: 520,
                     background: 'rgba(255,255,255,0.9)',
                     borderRadius: 8,
