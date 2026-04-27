@@ -1,6 +1,7 @@
 'use client'
 
- from 'next/image'import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 
@@ -9,7 +10,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-/* ================= TYPES ================= */
+/* ========== TYPES ========== */
 
 type ProductImage = {
   url: string
@@ -37,7 +38,7 @@ type Order = {
   order_items: OrderItem[]
 }
 
-/* ================= PAGE ================= */
+/* ========== PAGE ========== */
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -126,14 +127,13 @@ export default function OrdersPage() {
             return (
               <div key={item.id} style={itemRow}>
                 {/* IMAGE */}
-                <div style={{ position: 'relative', width: 90, height: 90 }}>
+                <div style={{ width: 90, height: 90, position: 'relative' }}>
                   {imageUrl ? (
                     <Image
                       src={imageUrl}
                       alt={item.name}
                       fill
                       style={{ objectFit: 'cover', borderRadius: 6 }}
-                      sizes="90px"
                     />
                   ) : (
                     <div style={imgPlaceholder} />
@@ -164,7 +164,7 @@ export default function OrdersPage() {
                       onClick={() => reorderItem(item)}
                       style={linkBtn}
                     >
-                      🔁 Re‑order
+                      🔁 Re-order
                     </button>
 
                     <span style={{ color: '#6b7280' }}>
@@ -181,7 +181,7 @@ export default function OrdersPage() {
   )
 }
 
-/* ================= HELPERS ================= */
+/* ========== HELPERS ========== */
 
 function Header({
   label,
@@ -200,10 +200,7 @@ function Header({
 
 function reorderItem(item: OrderItem) {
   const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-  cart.push({
-    productId: item.product_id,
-    qty: item.qty,
-  })
+  cart.push({ productId: item.product_id, qty: item.qty })
   localStorage.setItem('cart', JSON.stringify(cart))
   window.location.href = '/checkout'
 }
@@ -212,7 +209,7 @@ function downloadInvoice(orderId: string) {
   window.open(`/api/orders/${orderId}/invoice`, '_blank')
 }
 
-/* ================= STYLES ================= */
+/* ========== STYLES ========== */
 
 const searchBox: React.CSSProperties = {
   width: '100%',
@@ -270,4 +267,3 @@ const imgPlaceholder: React.CSSProperties = {
   background: '#e5e7eb',
   borderRadius: 6,
 }
-
