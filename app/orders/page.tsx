@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -9,87 +10,161 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+/* ================= TYPES ================= */
+
+type ProductImage = {
+  url: string
+  sort_order: number
+}
+
+type OrderItem = {
+  id: string
+  name: string
+  price: number
+  qty: number
+  product_id: string
+  product_images: ProductImage[]
+}
+
+type Order = {
+  id: string
+  order_no: string
+  created_at: string
+  grand_total: number
+  status: string
+  order_items: OrderItem[]
+}
+
+/* ================= PAGE ================= */
+
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<any[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
-    async function loadOrders() {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
+    supabase
+      .from('orders')
+      .select(`
+        id,
+        order_no,
+        created_at,
+        grand_total,
+        status,
+        order_items (
           id,
-          order_no,
-          created_at,
-          grand_total,
-          status,
-          customer_id,
-          order_items (
-            id,
-            name,
-            price,
-            qty,
-            product_id,
-            product_images (
-              url,
-              sort_order
-            )
+          name,
+          price,
+          qty,
+          product_id,
+          product_images:product_images (
+            url,
+            sort_order
           )
-        `)
-        .order('created_at', { ascending: false })
-
-      console.log('ORDERS DATA:', data)
-      console.log('ERROR:', error)
-
-      setOrders(data ?? [])
-      setLoading(false)
-    }
-
-    loadOrders()
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        setOrders(data ?? [])
+        setLoading(false)
+      })
   }, [])
 
-  if (loading) return <div style={{ padding: 20 }}>Loading…</div>
+  const filteredOrders = useMemo(() => {
+    if (!search) return orders
+    const q = search.toLowerCase()
+    return orders.filter(order =>
+      order.order_no.toLowerCase().includes(q) ||
+      order.order_items.some(item =>
+        item.name.toLowerCase().includes(q)
+      )
+    )
+  }, [orders, search])
+
+  if (loading) {
+    return <div style={{ padding: 20 }}>Loading orders…</div>
+  }
 
   return (
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
-      <h1>Your Orders (Debug Mode)</h1>
+      <h1 style={{ fontSize: 26, marginBottom: 12 }}>Your Orders</h1>
 
-      {orders.length === 0 && <p>No orders found.</p>}
+      {/* SEARCH */}
+      <input
+        placeholder="Search by order number or product name"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        style={searchBox}
+      />
 
-      {orders.map(order => (
-        <div
-          key={order.id}
-          style={{
-            border: '1px solid #ddd',
-            marginBottom: 20,
-            padding: 12,
-          }}
-        >
-          <p><strong>Order No:</strong> {order.order_no}</p>
-          <p><strong>Customer ID:</strong> {order.customer_id}</p>
+      {filteredOrders.length === 0 && <p>No orders found.</p>}
 
-          {order.order_items.map((item: any) => {
-            const image =
+      {filteredOrders.map(order => (
+        <div key={order.id} style={orderCard}>
+          {/* HEADER */}
+          <div style={headerGrid}>
+            <Header label="ORDER PLACED">
+              {new Date(order.created_at).toLocaleDateString()}
+            </Header>
+            <Header label="TOTAL">₹{order.grand_total}</Header>
+            <Header label="ORDER #">{order.order_no}</Header>
+            <Header label="STATUS">{order.status}</Header>
+          </div>
+
+          {/* ITEMS */}
+          {order.order_items.map(item => {
+            const imageUrl =
               item.product_images
-                ?.sort((a: any, b: any) => a.sort_order - b.sort_order)[0]
+                ?.sort((a, b) => a.sort_order - b.sort_order)[0]
                 ?.url
 
             return (
-              <div key={item.id} style={{ display: 'flex', gap: 12 }}>
-                <div style={{ width: 80, height: 80, position: 'relative' }}>
-                  {image && (
+              <div key={item.id} style={itemRow}>
+                {/* IMAGE */}
+                <div style={{ width: 90, height: 90, position: 'relative' }}>
+                  {imageUrl ? (
                     <Image
-                      src={image}
+                      src={imageUrl}
                       alt={item.name}
                       fill
-                      style={{ objectFit: 'cover' }}
+                      style={{ objectFit: 'cover', borderRadius: 6 }}
                     />
+                  ) : (
+                    <div style={imgPlaceholder} />
                   )}
                 </div>
 
-                <div>
-                  <div>{item.name}</div>
-                  <div>₹{item.price} × {item.qty}</div>
+                {/* DETAILS */}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600 }}>{item.name}</div>
+
+                  <div style={{ marginTop: 6 }}>
+                    ₹{item.price} × {item.qty}
+                  </div>
+
+                  <strong>₹{item.price * item.qty}</strong>
+
+                  <div style={actionsRow}>
+                    <Link href={`/orders/${order.id}`}>View order</Link>
+
+                    <button
+                      onClick={() => downloadInvoice(order.id)}
+                      style={linkBtn}
+                    >
+                      📄 Download invoice
+                    </button>
+
+                    <button
+                      onClick={() => reorderItem(item)}
+                      style={linkBtn}
+                    >
+                      🔁 Re‑order
+                    </button>
+
+                    <span style={{ color: '#6b7280' }}>
+                      📦 Track order
+                    </span>
+                  </div>
                 </div>
               </div>
             )
@@ -98,4 +173,92 @@ export default function OrdersPage() {
       ))}
     </main>
   )
+}
+
+/* ================= HELPERS ================= */
+
+function Header({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div>
+      <div style={headerLabel}>{label}</div>
+      <div>{children}</div>
+    </div>
+  )
+}
+
+function reorderItem(item: OrderItem) {
+  const cart = JSON.parse(localStorage.getItem('cart') || '[]')
+  cart.push({
+    productId: item.product_id,
+    qty: item.qty,
+  })
+  localStorage.setItem('cart', JSON.stringify(cart))
+  window.location.href = '/checkout'
+}
+
+function downloadInvoice(orderId: string) {
+  window.open(`/api/orders/${orderId}/invoice`, '_blank')
+}
+
+/* ================= STYLES ================= */
+
+const searchBox: React.CSSProperties = {
+  width: '100%',
+  padding: 10,
+  marginBottom: 20,
+  borderRadius: 6,
+  border: '1px solid #ccc',
+}
+
+const orderCard: React.CSSProperties = {
+  border: '1px solid #ddd',
+  borderRadius: 8,
+  marginBottom: 20,
+  background: '#fff',
+}
+
+const headerGrid: React.CSSProperties = {
+  padding: 12,
+  background: '#f3f4f6',
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, 1fr)',
+  fontSize: 13,
+}
+
+const itemRow: React.CSSProperties = {
+  display: 'flex',
+  gap: 16,
+  padding: 16,
+  borderTop: '1px solid #eee',
+}
+
+const actionsRow: React.CSSProperties = {
+  marginTop: 10,
+  display: 'flex',
+  gap: 16,
+}
+
+const headerLabel: React.CSSProperties = {
+  fontSize: 11,
+  color: '#6b7280',
+}
+
+const linkBtn: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  color: '#2563eb',
+  cursor: 'pointer',
+}
+
+const imgPlaceholder: React.CSSProperties = {
+  width: 90,
+  height: 90,
+  background: '#e5e7eb',
+  borderRadius: 6,
 }
