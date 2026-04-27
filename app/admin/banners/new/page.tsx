@@ -33,7 +33,7 @@ export default function NewBannerPage() {
 
     setSaving(true)
 
-    // ✅ Upload image to Supabase Storage
+    // ✅ 1. Upload image to Supabase Storage
     const fileName = `banner-${Date.now()}-${imageFile.name}`
 
     const { error: uploadError } = await supabase.storage
@@ -46,17 +46,17 @@ export default function NewBannerPage() {
       return
     }
 
-    // ✅ Get public image URL
     const { data } = supabase.storage
       .from('banners')
       .getPublicUrl(fileName)
 
     const imageUrl = data.publicUrl
 
-    // ✅ Insert banner record
-    const { error: insertError } = await supabase
-      .from('home_banners')
-      .insert({
+    // ✅ 2. CALL SERVER API (NO DIRECT INSERT HERE)
+    const res = await fetch('/api/admin/banners/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         title,
         text,
         cta_label: ctaLabel,
@@ -64,12 +64,15 @@ export default function NewBannerPage() {
         img: imageUrl,
         sort_order: sortOrder,
         is_active: isActive,
-      })
+      }),
+    })
+
+    const result = await res.json()
 
     setSaving(false)
 
-    if (insertError) {
-      setError(insertError.message)
+    if (!res.ok) {
+      setError(result.error || 'Failed to save banner')
       return
     }
 
@@ -78,7 +81,7 @@ export default function NewBannerPage() {
 
   return (
     <main style={{ maxWidth: 640 }}>
-      <h1 style={{ marginBottom: 16 }}>Add New Banner</h1>
+      <h1>Add New Banner</h1>
 
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
 
