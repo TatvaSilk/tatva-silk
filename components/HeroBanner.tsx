@@ -22,7 +22,7 @@ const supabase = createClient(
 export default function HeroBanner() {
   const [slides, setSlides] = useState<Slide[]>([])
   const [idx, setIdx] = useState(0)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const total = slides.length
 
@@ -41,7 +41,7 @@ export default function HeroBanner() {
     timerRef.current = null
   }
 
-  // ✅ Fetch banners from Supabase
+  // ✅ load banners
   useEffect(() => {
     supabase
       .from('home_banners')
@@ -50,7 +50,7 @@ export default function HeroBanner() {
       .order('sort_order')
       .then(({ data, error }) => {
         if (error) {
-          console.error('Hero banner fetch error:', error)
+          console.error('Hero banner error:', error)
         } else if (data) {
           setSlides(data)
         }
@@ -65,14 +65,14 @@ export default function HeroBanner() {
   if (!slides.length) return null
 
   return (
-    <div style={{ margin: '16px auto', maxWidth: 1200 }}>
+    <div style={{ maxWidth: 1200, margin: '16px auto' }}>
       <div onMouseEnter={stop} onMouseLeave={start}>
         <div
           style={{
             position: 'relative',
             height: 320,
-            overflow: 'hidden',
             borderRadius: 12,
+            overflow: 'hidden',
           }}
         >
           <div
@@ -84,7 +84,7 @@ export default function HeroBanner() {
               transition: 'transform 0.6s ease',
             }}
           >
-            {slides.map((s, i) => (
+            {slides.map((s) => (
               <div
                 key={s.id}
                 style={{
@@ -92,22 +92,18 @@ export default function HeroBanner() {
                   position: 'relative',
                 }}
               >
-                {/* ✅ BACKGROUND IMAGE */}
-                <Image
-                  src={s.img}
-                  alt={s.title}
-                  fill
-                  priority={i === 0}
-                  sizes="(max-width: 1024px) 100vw, 1200px"
+                {/* ✅ IMAGE RENDERED CORRECTLY */}
+                {s.img}vw, 1200px"
                   style={{ objectFit: 'cover' }}
+                  priority
                 />
 
-                {/* ✅ CONTENT CARD */}
+                {/* ✅ TEXT CARD */}
                 <div
                   style={{
                     position: 'absolute',
-                    left: 20,
                     top: 20,
+                    left: 20,
                     maxWidth: 520,
                     background: 'rgba(255,255,255,0.9)',
                     borderRadius: 8,
@@ -118,18 +114,7 @@ export default function HeroBanner() {
                   <p style={{ marginBottom: 10, color: '#555' }}>
                     {s.text}
                   </p>
-                  <Link
-                    href={s.cta_href}
-                    style={{
-                      display: 'inline-block',
-                      background: '#f59e0b',
-                      color: '#111827',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      fontWeight: 700,
-                      textDecoration: 'none',
-                    }}
-                  >
+                  {s.cta_href}
                     {s.cta_label}
                   </Link>
                 </div>
@@ -141,7 +126,7 @@ export default function HeroBanner() {
           <div
             style={{
               position: 'absolute',
-              bottom: 10,
+              bottom: 12,
               width: '100%',
               display: 'flex',
               justifyContent: 'center',
@@ -156,8 +141,8 @@ export default function HeroBanner() {
                   width: 9,
                   height: 9,
                   borderRadius: 999,
-                  border: 'none',
                   background: i === idx ? '#334155' : '#cbd5e1',
+                  border: 'none',
                   cursor: 'pointer',
                 }}
               />
@@ -168,4 +153,3 @@ export default function HeroBanner() {
     </div>
   )
 }
-``
