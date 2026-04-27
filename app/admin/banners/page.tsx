@@ -1,6 +1,4 @@
-'use client'
-
-import { useEffect, useState } from 'react'
+'use client''use clientEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 
@@ -23,6 +21,7 @@ type Banner = {
 export default function AdminBannersPage() {
   const [banners, setBanners] = useState<Banner[]>([])
   const [loading, setLoading] = useState(true)
+  const [dragId, setDragId] = useState<string | null>(null)
 
   async function loadBanners() {
     const { data } = await supabase
@@ -50,6 +49,18 @@ export default function AdminBannersPage() {
     loadBanners()
   }
 
+  async function reorder(from: string, to: string) {
+    if (from === to) return
+
+    await fetch('/api/admin/banners/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to }),
+    })
+
+    loadBanners()
+  }
+
   useEffect(() => {
     loadBanners()
   }, [])
@@ -64,48 +75,92 @@ export default function AdminBannersPage() {
         style={{
           display: 'flex',
           justifyContent: 'space-between',
-          marginBottom: 16,
+          marginBottom: 20,
         }}
       >
-        <h1 style={{ fontSize: 20 }}>Home Banners</h1>
-        <Link href="/admin/banners/new">New Banner</Link>
+        <h1 style={{ fontSize: 22 }}>🏷️ Home Banners</h1>
+        <Link
+          href="/admin/banners/new"
+          style={{
+            background: '#f59e0b',
+            padding: '8px 14px',
+            borderRadius: 8,
+            fontWeight: 700,
+            color: '#111',
+            textDecoration: 'none',
+          }}
+        >
+          + New Banner
+        </Link>
       </div>
 
       {banners.length === 0 ? (
         <p>No banners found.</p>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table
+          style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            background: '#020617',
+            borderRadius: 12,
+            overflow: 'hidden',
+          }}
+        >
           <thead>
-            <tr style={{ borderBottom: '1px solid #374151' }}>
-              <th align="left">Title</th>
-              <th align="left">Image URL</th>
-              <th align="left">Active</th>
-              <th align="left">Order</th>
-              <th></th>
+            <tr style={{ background: '#020617', borderBottom: '1px solid #1f2937' }}>
+              <th style={th}>Order</th>
+              <th style={th}>Title</th>
+              <th style={th}>Active</th>
+              <th style={th}>Actions</th>
             </tr>
           </thead>
+
           <tbody>
             {banners.map(b => (
-              <tr key={b.id} style={{ borderBottom: '1px solid #1f2937' }}>
-                <td>{b.title}</td>
-                <td style={{ maxWidth: 240, wordBreak: 'break-all' }}>
-                  {b.img}
+              <tr
+                key={b.id}
+                draggable
+                onDragStart={() => setDragId(b.id)}
+                onDragOver={e => e.preventDefault()}
+                onDrop={() => dragId && reorder(dragId, b.id)}
+                style={{
+                  borderBottom: '1px solid #1f2937',
+                  cursor: 'grab',
+                }}
+              >
+                <td style={td}>{b.sort_order}</td>
+
+                <td style={td}>
+                  <strong>{b.title}</strong>
                 </td>
-                <td>
+
+                <td style={td}>
                   <input
                     type="checkbox"
                     checked={b.is_active}
-                    onChange={e =>
-                      toggleActive(b.id, e.target.checked)
-                    }
+                    onChange={e => toggleActive(b.id, e.target.checked)}
                   />
                 </td>
-                <td>{b.sort_order}</td>
-                <td align="right">
-                  <Link href={`/admin/banners/${b.id}`}>Edit</Link>
+
+                <td style={{ ...td, textAlign: 'right' }}>
+                  <Link
+                    href={`/admin/banners/${b.id}`}
+                    style={{
+                      color: '#38bdf8',
+                      marginRight: 12,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    Edit
+                  </Link>
                   <button
                     onClick={() => remove(b.id)}
-                    style={{ marginLeft: 8 }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#fda4af',
+                      cursor: 'pointer',
+                    }}
                   >
                     Delete
                   </button>
@@ -115,6 +170,23 @@ export default function AdminBannersPage() {
           </tbody>
         </table>
       )}
+
+      <p style={{ opacity: 0.6, marginTop: 12 }}>
+        ℹ️ Drag rows to reorder banners
+      </p>
     </main>
   )
+}
+
+/* ===== Styles ===== */
+const th: React.CSSProperties = {
+  padding: 12,
+  textAlign: 'left',
+  color: '#cbd5e1',
+  fontWeight: 600,
+}
+
+const td: React.CSSProperties = {
+  padding: 12,
+  color: '#e5e7eb',
 }
