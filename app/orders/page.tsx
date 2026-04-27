@@ -10,7 +10,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-/* ========= TYPES ========= */
+/* ================= TYPES ================= */
 
 type ProductImage = {
   url: string
@@ -35,7 +35,7 @@ type Order = {
   order_items: OrderItem[]
 }
 
-/* ========= PAGE ========= */
+/* ================= PAGE ================= */
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -73,10 +73,10 @@ export default function OrdersPage() {
   const filteredOrders = useMemo(() => {
     if (!search) return orders
     const q = search.toLowerCase()
-    return orders.filter(o =>
-      o.order_no.toLowerCase().includes(q) ||
-      o.order_items.some(i =>
-        i.name.toLowerCase().includes(q)
+    return orders.filter(order =>
+      order.order_no.toLowerCase().includes(q) ||
+      order.order_items.some(item =>
+        item.name.toLowerCase().includes(q)
       )
     )
   }, [orders, search])
@@ -89,12 +89,15 @@ export default function OrdersPage() {
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
       <h1 style={{ fontSize: 26, marginBottom: 12 }}>Your Orders</h1>
 
+      {/* SEARCH */}
       <input
-        placeholder="Search orders"
+        placeholder="Search by order number or product name"
         value={search}
         onChange={e => setSearch(e.target.value)}
         style={searchBox}
       />
+
+      {filteredOrders.length === 0 && <p>No orders found.</p>}
 
       {filteredOrders.map(order => (
         <div key={order.id} style={orderCard}>
@@ -111,12 +114,14 @@ export default function OrdersPage() {
           {/* ITEMS */}
           {order.order_items.map(item => {
             const imageUrl =
-              item.product_images?.sort((a, b) => a.sort_order - b.sort_order)[0]?.url
+              item.product_images
+                ?.sort((a, b) => a.sort_order - b.sort_order)[0]
+                ?.url
 
             return (
               <div key={item.id} style={itemRow}>
                 {/* IMAGE */}
-                <div style={{ position: 'relative', width: 90, height: 90 }}>
+                <div style={{ width: 90, height: 90, position: 'relative' }}>
                   {imageUrl ? (
                     <Image
                       src={imageUrl}
@@ -132,7 +137,11 @@ export default function OrdersPage() {
                 {/* DETAILS */}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{item.name}</div>
-                  <div>₹{item.price} × {item.qty}</div>
+
+                  <div style={{ marginTop: 6 }}>
+                    ₹{item.price} × {item.qty}
+                  </div>
+
                   <strong>₹{item.price * item.qty}</strong>
 
                   <div style={actionsRow}>
@@ -166,9 +175,15 @@ export default function OrdersPage() {
   )
 }
 
-/* ========= HELPERS ========= */
+/* ================= HELPERS ================= */
 
-function Header({ label, children }: { label: string; children: React.ReactNode }) {
+function Header({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
   return (
     <div>
       <div style={headerLabel}>{label}</div>
@@ -179,7 +194,10 @@ function Header({ label, children }: { label: string; children: React.ReactNode 
 
 function reorderItem(item: OrderItem) {
   const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-  cart.push({ productId: item.product_id, qty: item.qty })
+  cart.push({
+    productId: item.product_id,
+    qty: item.qty,
+  })
   localStorage.setItem('cart', JSON.stringify(cart))
   window.location.href = '/checkout'
 }
@@ -188,12 +206,14 @@ function downloadInvoice(orderId: string) {
   window.open(`/api/orders/${orderId}/invoice`, '_blank')
 }
 
-/* ========= STYLES ========= */
+/* ================= STYLES ================= */
 
 const searchBox: React.CSSProperties = {
   width: '100%',
   padding: 10,
   marginBottom: 20,
+  borderRadius: 6,
+  border: '1px solid #ccc',
 }
 
 const orderCard: React.CSSProperties = {
@@ -242,4 +262,3 @@ const imgPlaceholder: React.CSSProperties = {
   background: '#e5e7eb',
   borderRadius: 6,
 }
-``
