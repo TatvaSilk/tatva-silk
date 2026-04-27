@@ -217,3 +217,4 @@ const imgPlaceholder: React.CSSProperties = {
   background: '#e5e7eb',
   borderRadius: 6,
 }
+``
