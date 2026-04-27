@@ -10,7 +10,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-/* ================= TYPES ================= */
+/* ========= TYPES ========= */
 
 type ProductImage = {
   url: string
@@ -38,7 +38,7 @@ type Order = {
   order_items: OrderItem[]
 }
 
-/* ================= PAGE ================= */
+/* ========= PAGE ========= */
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -75,10 +75,10 @@ export default function OrdersPage() {
   const filteredOrders = useMemo(() => {
     if (!search) return orders
     const q = search.toLowerCase()
-    return orders.filter(o =>
-      o.order_no.toLowerCase().includes(q) ||
-      o.order_items.some(i =>
-        i.name.toLowerCase().includes(q)
+    return orders.filter(order =>
+      order.order_no.toLowerCase().includes(q) ||
+      order.order_items.some(item =>
+        item.name.toLowerCase().includes(q)
       )
     )
   }, [orders, search])
@@ -89,9 +89,7 @@ export default function OrdersPage() {
 
   return (
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
-      <h1 style={{ fontSize: 26, marginBottom: 12 }}>
-        Your Orders
-      </h1>
+      <h1 style={{ fontSize: 26, marginBottom: 12 }}>Your Orders</h1>
 
       {/* SEARCH */}
       <input
@@ -101,9 +99,7 @@ export default function OrdersPage() {
         style={searchBox}
       />
 
-      {filteredOrders.length === 0 && (
-        <p>No orders found.</p>
-      )}
+      {filteredOrders.length === 0 && <p>No orders found.</p>}
 
       {filteredOrders.map(order => (
         <div key={order.id} style={orderCard}>
@@ -112,27 +108,32 @@ export default function OrdersPage() {
             <Header label="ORDER PLACED">
               {new Date(order.created_at).toLocaleDateString()}
             </Header>
-            <Header label="TOTAL">₹{order.grand_total}</Header>
-            <Header label="ORDER #">{order.order_no}</Header>
-            <Header label="STATUS">{order.status}</Header>
+            <Header label="TOTAL">
+              ₹{order.grand_total}
+            </Header>
+            <Header label="ORDER #">
+              {order.order_no}
+            </Header>
+            <Header label="STATUS">
+              {order.status}
+            </Header>
           </div>
 
           {/* ITEMS */}
           {order.order_items.map(item => {
-            const img =
+            const imageUrl =
               item.product?.product_images?.[0]?.url
 
             return (
               <div key={item.id} style={itemRow}>
                 {/* IMAGE */}
-                <div style={{ width: 90, height: 90 }}>
-                  {img ? (
+                <div style={{ width: 90, height: 90, position: 'relative' }}>
+                  {imageUrl ? (
                     <Image
-                      src={img}
+                      src={imageUrl}
                       alt={item.name}
-                      width={90}
-                      height={90}
-                      style={{ objectFit: 'contain' }}
+                      fill
+                      style={{ objectFit: 'cover', borderRadius: 6 }}
                     />
                   ) : (
                     <div style={imgPlaceholder} />
@@ -141,20 +142,16 @@ export default function OrdersPage() {
 
                 {/* DETAILS */}
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>
-                    {item.name}
-                  </div>
+                  <div style={{ fontWeight: 600 }}>{item.name}</div>
 
                   <div style={{ marginTop: 6 }}>
                     ₹{item.price} × {item.qty}
                   </div>
 
-                  <strong>
-                    ₹{item.price * item.qty}
-                  </strong>
+                  <strong>₹{item.price * item.qty}</strong>
 
                   <div style={actionsRow}>
-                    /orders/{order.id}View order</Link>
+                    <Link href={`/orders/${order.id}`}>View order</Link>
 
                     <button
                       onClick={() => downloadInvoice(order.id)}
@@ -184,7 +181,7 @@ export default function OrdersPage() {
   )
 }
 
-/* ================= HELPERS ================= */
+/* ========= HELPERS ========= */
 
 function Header({
   label,
@@ -212,7 +209,7 @@ function downloadInvoice(orderId: string) {
   window.open(`/api/orders/${orderId}/invoice`, '_blank')
 }
 
-/* ================= STYLES ================= */
+/* ========= STYLES ========= */
 
 const searchBox: React.CSSProperties = {
   width: '100%',
@@ -268,4 +265,6 @@ const imgPlaceholder: React.CSSProperties = {
   width: 90,
   height: 90,
   background: '#e5e7eb',
+  borderRadius: 6,
 }
+``
