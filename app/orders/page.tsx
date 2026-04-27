@@ -1,6 +1,4 @@
-'use client'
-
-import { useEffect, useMemo, useState } from 'react'
+'use client' { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 
@@ -9,11 +7,9 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-/* ========= TYPES ========= */
+/* ---------- TYPES ---------- */
 
-type ProductImage = {
-  url: string
-}
+type ProductImage = { url: string }
 
 type ProductJoin = {
   product_images: ProductImage[]
@@ -38,7 +34,7 @@ type Order = {
   order_items: OrderItem[]
 }
 
-/* ========= PAGE ========= */
+/* ---------- PAGE ---------- */
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -77,7 +73,7 @@ export default function OrdersPage() {
             )
           )
         `)
-        .eq('customer_id', user.id)
+        .eq('customer_id', user.id) // SECURITY FIX
         .order('created_at', { ascending: false })
 
       setOrders(data ?? [])
@@ -90,11 +86,10 @@ export default function OrdersPage() {
   const filteredOrders = useMemo(() => {
     if (!search) return orders
     const q = search.toLowerCase()
-    return orders.filter(order =>
-      order.order_no.toLowerCase().includes(q) ||
-      order.order_items.some(item =>
-        item.name.toLowerCase().includes(q)
-      )
+    return orders.filter(
+      o =>
+        o.order_no.toLowerCase().includes(q) ||
+        o.order_items.some(i => i.name.toLowerCase().includes(q))
     )
   }, [orders, search])
 
@@ -122,24 +117,8 @@ export default function OrdersPage() {
       {filteredOrders.length === 0 && <p>No orders found.</p>}
 
       {filteredOrders.map(order => (
-        <div
-          key={order.id}
-          style={{
-            border: '1px solid #ddd',
-            borderRadius: 8,
-            marginBottom: 20,
-            background: '#fff',
-          }}
-        >
-          <div
-            style={{
-              padding: 12,
-              background: '#f3f4f6',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4,1fr)',
-              fontSize: 13,
-            }}
-          >
+        <div key={order.id} style={{ border: '1px solid #ddd', borderRadius: 8, marginBottom: 20, background: '#fff' }}>
+          <div style={{ padding: 12, background: '#f3f4f6', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', fontSize: 13 }}>
             <Header label="ORDER PLACED">
               {new Date(order.created_at).toLocaleDateString()}
             </Header>
@@ -149,37 +128,15 @@ export default function OrdersPage() {
           </div>
 
           {order.order_items.map(item => {
-            const imageUrl =
-              item.product?.[0]?.product_images?.[0]?.url || null
+            const imageUrl = item.product?.[0]?.product_images?.[0]?.url
 
             return (
-              <div
-                key={item.id}
-                style={{
-                  display: 'flex',
-                  gap: 16,
-                  padding: 16,
-                  borderTop: '1px solid #eee',
-                }}
-              >
+              <div key={item.id} style={{ display: 'flex', gap: 16, padding: 16, borderTop: '1px solid #eee' }}>
                 <div style={{ width: 90, height: 90 }}>
                   {imageUrl ? (
-                    <img
-                      src={imageUrl}
-                      alt={item.name}
-                      width={90}
-                      height={90}
-                      style={{ borderRadius: 6, objectFit: 'cover' }}
-                    />
+                    <img src={imageUrl} alt={item.name} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 6 }} />
                   ) : (
-                    <div
-                      style={{
-                        width: 90,
-                        height: 90,
-                        background: '#e5e7eb',
-                        borderRadius: 6,
-                      }}
-                    />
+                    <div style={{ width: 90, height: 90, background: '#e5e7eb', borderRadius: 6 }} />
                   )}
                 </div>
 
@@ -190,32 +147,8 @@ export default function OrdersPage() {
 
                   <div style={{ marginTop: 10, display: 'flex', gap: 16 }}>
                     <Link href={`/orders/${order.id}`}>View order</Link>
-
-                    <button
-                      style={btnStyle}
-                      onClick={() =>
-                        window.open(`/api/orders/${order.id}/invoice`)
-                      }
-                    >
-                      Download invoice
-                    </button>
-
-                    <button
-                      style={btnStyle}
-                      onClick={() => {
-                        const cart = JSON.parse(
-                          localStorage.getItem('cart') || '[]'
-                        )
-                        cart.push({
-                          productId: item.product_id,
-                          qty: item.qty,
-                        })
-                        localStorage.setItem('cart', JSON.stringify(cart))
-                        window.location.href = '/checkout'
-                      }}
-                    >
-                      Re‑order
-                    </button>
+                    <button onClick={() => window.open(`/api/orders/${order.id}/invoice`)} style={btnStyle}>Download invoice</button>
+                    <button onClick={() => reorder(item)} style={btnStyle}>Re‑order</button>
                   </div>
                 </div>
               </div>
@@ -227,19 +160,20 @@ export default function OrdersPage() {
   )
 }
 
-function Header({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
+function Header({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <div style={{ fontSize: 11, color: '#6b7280' }}>{label}</div>
       <div>{children}</div>
     </div>
   )
+}
+
+function reorder(item: OrderItem) {
+  const cart = JSON.parse(localStorage.getItem('cart') || '[]')
+  cart.push({ productId: item.product_id, qty: item.qty })
+  localStorage.setItem('cart', JSON.stringify(cart))
+  window.location.href = '/checkout'
 }
 
 const btnStyle: React.CSSProperties = {
@@ -249,3 +183,4 @@ const btnStyle: React.CSSProperties = {
   color: '#2563eb',
   cursor: 'pointer',
 }
+``
