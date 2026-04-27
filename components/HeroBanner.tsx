@@ -1,4 +1,6 @@
-'use client''use client 'next/image'
+'use client'
+
+import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
@@ -41,14 +43,20 @@ export default function HeroBanner() {
     }
   }
 
-  // ✅ Load banner data
+  // ✅ Fetch banners from Supabase
   useEffect(() => {
     supabase
       .from('home_banners')
       .select('*')
       .eq('is_active', true)
       .order('sort_order')
-      .then(({ data }) => setSlides(data ?? []))
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Hero banner fetch error:', error)
+        } else {
+          setSlides(data ?? [])
+        }
+      })
   }, [])
 
   useEffect(() => {
@@ -88,12 +96,12 @@ export default function HeroBanner() {
                   src={s.img}
                   alt={s.title}
                   fill
-                  sizes="(max-width: 768px) 100vw, 1200px"
+                  sizes="100vw"
                   style={{ objectFit: 'cover' }}
                   priority
                 />
 
-                {/* ✅ CONTENT */}
+                {/* ✅ CARD */}
                 <div
                   style={{
                     position: 'absolute',
@@ -107,7 +115,6 @@ export default function HeroBanner() {
                 >
                   <h2 style={{ marginBottom: 6 }}>{s.title}</h2>
                   <p style={{ marginBottom: 10, color: '#555' }}>{s.text}</p>
-
                   <Link href={s.cta_href}>
                     <button
                       style={{
@@ -158,3 +165,4 @@ export default function HeroBanner() {
     </div>
   )
 }
+``
