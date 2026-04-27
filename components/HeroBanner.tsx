@@ -33,15 +33,19 @@ export default function HeroBanner() {
 
   function start() {
     stop()
-    timerRef.current = setInterval(() => go(idx + 1), 4500)
+    timerRef.current = setInterval(() => {
+      go(idx + 1)
+    }, 4500)
   }
 
   function stop() {
-    if (timerRef.current) clearInterval(timerRef.current)
-    timerRef.current = null
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
   }
 
-  // ✅ load banners
+  // ✅ Fetch banners
   useEffect(() => {
     supabase
       .from('home_banners')
@@ -50,9 +54,9 @@ export default function HeroBanner() {
       .order('sort_order')
       .then(({ data, error }) => {
         if (error) {
-          console.error('Hero banner error:', error)
-        } else if (data) {
-          setSlides(data)
+          console.error('Hero banner fetch error:', error)
+        } else {
+          setSlides(data ?? [])
         }
       })
   }, [])
@@ -84,7 +88,7 @@ export default function HeroBanner() {
               transition: 'transform 0.6s ease',
             }}
           >
-            {slides.map((s) => (
+            {slides.map((s, i) => (
               <div
                 key={s.id}
                 style={{
@@ -92,18 +96,22 @@ export default function HeroBanner() {
                   position: 'relative',
                 }}
               >
-                {/* ✅ IMAGE RENDERED CORRECTLY */}
-                {s.img}vw, 1200px"
+                {/* ✅ IMAGE */}
+                <Image
+                  src={s.img}
+                  alt={s.title}
+                  fill
+                  sizes="100vw"
                   style={{ objectFit: 'cover' }}
-                  priority
+                  priority={i === 0}
                 />
 
-                {/* ✅ TEXT CARD */}
+                {/* ✅ CONTENT CARD */}
                 <div
                   style={{
                     position: 'absolute',
-                    top: 20,
                     left: 20,
+                    top: 20,
                     maxWidth: 520,
                     background: 'rgba(255,255,255,0.9)',
                     borderRadius: 8,
@@ -111,11 +119,21 @@ export default function HeroBanner() {
                   }}
                 >
                   <h2 style={{ marginBottom: 6 }}>{s.title}</h2>
-                  <p style={{ marginBottom: 10, color: '#555' }}>
-                    {s.text}
-                  </p>
-                  {s.cta_href}
-                    {s.cta_label}
+                  <p style={{ marginBottom: 10, color: '#555' }}>{s.text}</p>
+
+                  <Link href={s.cta_href}>
+                    <button
+                      style={{
+                        background: '#f59e0b',
+                        border: 'none',
+                        padding: '8px 14px',
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {s.cta_label}
+                    </button>
                   </Link>
                 </div>
               </div>
@@ -138,11 +156,11 @@ export default function HeroBanner() {
                 key={i}
                 onClick={() => go(i)}
                 style={{
-                  width: 9,
-                  height: 9,
-                  borderRadius: 999,
-                  background: i === idx ? '#334155' : '#cbd5e1',
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
                   border: 'none',
+                  background: i === idx ? '#334155' : '#cbd5e1',
                   cursor: 'pointer',
                 }}
               />
