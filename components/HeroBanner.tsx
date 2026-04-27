@@ -27,7 +27,9 @@ export default function HeroBanner() {
   const [idx, setIdx] = useState(0)
   const timer = useRef<NodeJS.Timeout | null>(null)
 
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  const isMobile =
+    typeof window !== 'undefined' && window.innerWidth < 768
+
   const total = slides.length
 
   useEffect(() => {
@@ -36,78 +38,92 @@ export default function HeroBanner() {
       .select('*')
       .eq('is_active', true)
       .order('sort_order')
-      .then(({ data }) => setSlides(data ?? []))
+      .then(({ data }) => {
+        if (data) setSlides(data)
+      })
   }, [])
 
+  // ✅ FIXED useEffect (no null return)
   useEffect(() => {
     if (total > 1) {
-      timer.current = setInterval(() => setIdx(i => (i + 1) % total), 4500)
+      timer.current = setInterval(() => {
+        setIdx(i => (i + 1) % total)
+      }, 4500)
     }
-    return () => timer.current && clearInterval(timer.current)
+
+    return () => {
+      if (timer.current) clearInterval(timer.current)
+    }
   }, [total])
 
   if (!slides.length) return null
 
   const s = slides[idx]
-  const imageToUse = isMobile && s.mobile_img ? s.mobile_img : s.img
+  const imageSrc =
+    isMobile && s.mobile_img ? s.mobile_img : s.img
+
   const dark = s.theme !== 'light'
+  const gradient = s.gradient_color || '#0b1220'
 
   return (
-    <div style={{ maxWidth: 1200, margin: '24px auto' }}>
+    <div style={{ maxWidth: 1200, margin: '20px auto' }}>
       <div
         style={{
           position: 'relative',
-          height: 380,
+          height: 340,                 // ✅ SMALLER HEIGHT
           borderRadius: 14,
           overflow: 'hidden',
-          background: s.gradient_color || '#0b1220',
+          background: gradient,
         }}
       >
         <Image
-          src={imageToUse}
+          src={imageSrc}
           alt={s.title}
           fill
-          sizes="100vw"
-          style={{
-            objectFit: 'contain',
-            opacity: dark ? 0.9 : 1,
-          }}
           priority
+          sizes="(max-width:768px) 100vw, 1200px"
+          style={{
+            objectFit: 'contain',      // ✅ NO CROP
+          }}
         />
 
-        {/* GRADIENT */}
+        {/* ✅ GRADIENT OVERLAY */}
         <div
           style={{
             position: 'absolute',
             inset: 0,
-            background: `linear-gradient(90deg,
-              ${s.gradient_color || '#0b1220'}dd 0%,
-              ${s.gradient_color || '#0b1220'}88 40%,
-              transparent 75%)`,
+            background: `linear-gradient(
+              90deg,
+              ${gradient}ee 0%,
+              ${gradient}99 45%,
+              transparent 75%
+            )`,
           }}
         />
 
-        {/* TEXT */}
+        {/* ✅ TEXT CONTENT */}
         <div
           style={{
             position: 'absolute',
-            left: 32,
+            left: 28,
             top: '50%',
             transform: 'translateY(-50%)',
-            maxWidth: 480,
+            maxWidth: 460,
             color: dark ? '#f8fafc' : '#111827',
           }}
         >
-          <h2>{s.title}</h2>
-          <p style={{ margin: '12px 0' }}>{s.text}</p>
+          <h2 style={{ marginBottom: 6 }}>{s.title}</h2>
+          <p style={{ marginBottom: 14 }}>{s.text}</p>
+
           <Link href={s.cta_href}>
             <button
               style={{
                 background: '#f59e0b',
                 border: 'none',
-                padding: '12px 20px',
+                padding: '10px 18px',
                 borderRadius: 8,
                 fontWeight: 700,
+                cursor: 'pointer',
               }}
             >
               {s.cta_label}
@@ -118,4 +134,3 @@ export default function HeroBanner() {
     </div>
   )
 }
-``
