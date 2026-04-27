@@ -27,7 +27,6 @@ export default function HeroBanner() {
   const total = slides.length
 
   function go(to: number) {
-    if (!total) return
     setIdx(((to % total) + total) % total)
   }
 
@@ -37,26 +36,21 @@ export default function HeroBanner() {
   }
 
   function stop() {
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-      timerRef.current = null
-    }
+    if (timerRef.current) clearInterval(timerRef.current)
+    timerRef.current = null
   }
 
-  // ✅ Fetch banners from Supabase
   useEffect(() => {
     supabase
       .from('home_banners')
       .select('*')
       .eq('is_active', true)
       .order('sort_order')
-      .then(({ data, error }) => {
-        if (!error) setSlides(data ?? [])
-      })
+      .then(({ data }) => setSlides(data ?? []))
   }, [])
 
   useEffect(() => {
-    if (slides.length) start()
+    if (slides.length > 1) start()
     return stop
   }, [idx, slides.length])
 
@@ -68,17 +62,14 @@ export default function HeroBanner() {
         <div
           style={{
             position: 'relative',
-            height: 420,                 // ✅ taller for portrait images
             overflow: 'hidden',
             borderRadius: 12,
-            background: '#f8fafc',       // ✅ clean background
           }}
         >
           <div
             style={{
               display: 'flex',
               width: `${total * 100}%`,
-              height: '100%',
               transform: `translateX(-${idx * (100 / total)}%)`,
               transition: 'transform 0.6s ease',
             }}
@@ -86,28 +77,36 @@ export default function HeroBanner() {
             {slides.map(s => (
               <div
                 key={s.id}
-                style={{ minWidth: `${100 / total}%`, position: 'relative' }}
+                style={{
+                  minWidth: `${100 / total}%`,
+                  position: 'relative',
+                  background: '#f9fafb',
+                }}
               >
-                {/* ✅ FULL IMAGE (NO CROP) */}
-                <Image
-                  src={s.img}
-                  alt={s.title}
-                  fill
-                  sizes="100vw"
-                  style={{
-                    objectFit: 'contain',     // ✅ IMPORTANT FIX
-                  }}
-                  priority
-                />
+                {/* ✅ IMAGE DEFINES HEIGHT */}
+                <div style={{ position: 'relative', width: '100%' }}>
+                  <Image
+                    src={s.img}
+                    alt={s.title}
+                    width={1200}
+                    height={800}          // ✅ auto scales correctly
+                    style={{
+                      width: '100%',
+                      height: 'auto',
+                      objectFit: 'contain',
+                    }}
+                    priority
+                  />
+                </div>
 
-                {/* ✅ TEXT CARD */}
+                {/* ✅ TEXT OVERLAY */}
                 <div
                   style={{
                     position: 'absolute',
                     top: 24,
                     left: 24,
                     maxWidth: 520,
-                    background: 'rgba(255,255,255,0.94)',
+                    background: 'rgba(255,255,255,0.95)',
                     borderRadius: 10,
                     padding: 18,
                   }}
@@ -133,32 +132,34 @@ export default function HeroBanner() {
             ))}
           </div>
 
-          {/* ✅ DOTS */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 14,
-              width: '100%',
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 6,
-            }}
-          >
-            {slides.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => go(i)}
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: '50%',
-                  border: 'none',
-                  background: i === idx ? '#334155' : '#cbd5e1',
-                  cursor: 'pointer',
-                }}
-              />
-            ))}
-          </div>
+          {/* DOTS */}
+          {slides.length > 1 && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: 14,
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'center',
+                gap: 6,
+              }}
+            >
+              {slides.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => go(i)}
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: i === idx ? '#334155' : '#cbd5e1',
+                    cursor: 'pointer',
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
