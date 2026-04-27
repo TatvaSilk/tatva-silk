@@ -12,123 +12,129 @@ const supabase = createClient(
 export default function NewBannerPage() {
   const router = useRouter()
 
-  const [form, setForm] = useState({
-    title: '',
-    text: '',
-    cta_label: '',
-    cta_href: '',
-    img: '',
-    sort_order: 1,
-    is_active: true,
-  })
+  const [title, setTitle] = useState('')
+  const [text, setText] = useState('')
+  const [ctaLabel, setCtaLabel] = useState('')
+  const [ctaHref, setCtaHref] = useState('')
+  const [sortOrder, setSortOrder] = useState(1)
+  const [isActive, setIsActive] = useState(true)
+  const [imageFile, setImageFile] = useState<File | null>(null)
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function saveBanner() {
-    setSaving(true)
     setError(null)
 
-    if (!form.title || !form.img) {
-      setError('Title and Image URL are required')
-      setSaving(false)
+    if (!title || !imageFile) {
+      setError('Title and Image are required')
       return
     }
 
-    const { error } = await supabase
+    setSaving(true)
+
+    // ✅ Upload image to Supabase Storage
+    const fileName = `banner-${Date.now()}-${imageFile.name}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('banners')
+      .upload(fileName, imageFile)
+
+    if (uploadError) {
+      setSaving(false)
+      setError(uploadError.message)
+      return
+    }
+
+    // ✅ Get public image URL
+    const { data } = supabase.storage
+      .from('banners')
+      .getPublicUrl(fileName)
+
+    const imageUrl = data.publicUrl
+
+    // ✅ Insert banner record
+    const { error: insertError } = await supabase
       .from('home_banners')
-      .insert(form)
+      .insert({
+        title,
+        text,
+        cta_label: ctaLabel,
+        cta_href: ctaHref,
+        img: imageUrl,
+        sort_order: sortOrder,
+        is_active: isActive,
+      })
 
     setSaving(false)
 
-    if (error) {
-      setError(error.message)
+    if (insertError) {
+      setError(insertError.message)
       return
     }
 
-    // ✅ Go back to banner list
     router.push('/admin/banners')
   }
 
   return (
-    <main style={{ padding: 20, maxWidth: 640 }}>
-      <h1 style={{ fontSize: 20, marginBottom: 16 }}>Add New Banner</h1>
+    <main style={{ maxWidth: 640 }}>
+      <h1 style={{ marginBottom: 16 }}>Add New Banner</h1>
 
-      {error && (
-        <p style={{ color: 'crimson', marginBottom: 12 }}>{error}</p>
-      )}
+      {error && <p style={{ color: 'crimson' }}>{error}</p>}
 
-      <label>
-        Title
-        <input
-          value={form.title}
-          onChange={e => setForm({ ...form, title: e.target.value })}
-          style={{ width: '100%', marginBottom: 10 }}
-        />
-      </label>
+      <input
+        placeholder="Title"
+        value={title}
+        onChange={e => setTitle(e.target.value)}
+        style={{ width: '100%', marginBottom: 10 }}
+      />
 
-      <label>
-        Description
-        <textarea
-          value={form.text}
-          onChange={e => setForm({ ...form, text: e.target.value })}
-          style={{ width: '100%', marginBottom: 10 }}
-        />
-      </label>
+      <textarea
+        placeholder="Description"
+        value={text}
+        onChange={e => setText(e.target.value)}
+        style={{ width: '100%', marginBottom: 10 }}
+      />
 
-      <label>
-        Image URL
-        <input
-          value={form.img}
-          onChange={e => setForm({ ...form, img: e.target.value })}
-          style={{ width: '100%', marginBottom: 10 }}
-        />
-      </label>
+      <input
+        type="file"
+        accept="image/*"
+        onChange={e => setImageFile(e.target.files?.[0] ?? null)}
+        style={{ marginBottom: 10 }}
+      />
 
-      <label>
-        Button Label
-        <input
-          value={form.cta_label}
-          onChange={e =>
-            setForm({ ...form, cta_label: e.target.value })
-          }
-          style={{ width: '100%', marginBottom: 10 }}
-        />
-      </label>
+      <input
+        placeholder="Button Label"
+        value={ctaLabel}
+        onChange={e => setCtaLabel(e.target.value)}
+        style={{ width: '100%', marginBottom: 10 }}
+      />
 
-      <label>
-        Button Link
-        <input
-          value={form.cta_href}
-          onChange={e =>
-            setForm({ ...form, cta_href: e.target.value })
-          }
-          style={{ width: '100%', marginBottom: 10 }}
-        />
-      </label>
+      <input
+        placeholder="Button Link"
+        value={ctaHref}
+        onChange={e => setCtaHref(e.target.value)}
+        style={{ width: '100%', marginBottom: 10 }}
+      />
+
+      <input
+        type="number"
+        placeholder="Sort order"
+        value={sortOrder}
+        onChange={e => setSortOrder(Number(e.target.value))}
+        style={{ width: '100%', marginBottom: 10 }}
+      />
 
       <label>
-        Sort Order
-        <input
-          type="number"
-          value={form.sort_order}
-          onChange={e =>
-            setForm({ ...form, sort_order: Number(e.target.value) })
-          }
-          style={{ width: '100%', marginBottom: 10 }}
-        />
-      </label>
-
-      <label style={{ display: 'block', marginBottom: 16 }}>
         <input
           type="checkbox"
-          checked={form.is_active}
-          onChange={e =>
-            setForm({ ...form, is_active: e.target.checked })
-          }
+          checked={isActive}
+          onChange={e => setIsActive(e.target.checked)}
         />{' '}
         Active
       </label>
+
+      <br /><br />
 
       <button onClick={saveBanner} disabled={saving}>
         {saving ? 'Saving…' : 'Save Banner'}
