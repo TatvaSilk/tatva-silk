@@ -119,7 +119,7 @@ export default function OrdersPage() {
 
             return (
               <div key={item.id} style={itemRow}>
-                {/* ✅ IMAGE – FIXED */}
+                {/* ✅ IMAGE (SAFE HTML IMG) */}
                 <div style={{ width: 90, height: 90 }}>
                   {imageUrl ? (
                     <img
@@ -130,10 +130,18 @@ export default function OrdersPage() {
                       style={{
                         objectFit: 'cover',
                         borderRadius: 6,
+                        display: 'block',
                       }}
                     />
                   ) : (
-                    <div style={imgPlaceholder} />
+                    <div
+                      style={{
+                        width: 90,
+                        height: 90,
+                        background: '#e5e7eb',
+                        borderRadius: 6,
+                      }}
+                    />
                   )}
                 </div>
 
@@ -254,12 +262,5 @@ const linkBtn: React.CSSProperties = {
   padding: 0,
   color: '#2563eb',
   cursor: 'pointer',
-}
-
-const imgPlaceholder: React.CSSProperties = {
-  width: 90,
-  height: 90,
-  background: '#e5e7eb',
-  borderRadius: 6,
 }
 ``
