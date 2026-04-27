@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import Image from 'next/image'
+ from 'next/image'import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 
@@ -10,13 +9,13 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-/* ========= TYPES ========= */
+/* ================= TYPES ================= */
 
 type ProductImage = {
   url: string
 }
 
-type Product = {
+type ProductJoin = {
   product_images: ProductImage[]
 }
 
@@ -26,7 +25,7 @@ type OrderItem = {
   price: number
   qty: number
   product_id: string
-  product: Product | null
+  product: ProductJoin[] | null
 }
 
 type Order = {
@@ -38,7 +37,7 @@ type Order = {
   order_items: OrderItem[]
 }
 
-/* ========= PAGE ========= */
+/* ================= PAGE ================= */
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -67,7 +66,7 @@ export default function OrdersPage() {
       `)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
-        setOrders(data ?? [])
+        setOrders((data ?? []) as Order[])
         setLoading(false)
       })
   }, [])
@@ -122,18 +121,19 @@ export default function OrdersPage() {
           {/* ITEMS */}
           {order.order_items.map(item => {
             const imageUrl =
-              item.product?.product_images?.[0]?.url
+              item.product?.[0]?.product_images?.[0]?.url
 
             return (
               <div key={item.id} style={itemRow}>
                 {/* IMAGE */}
-                <div style={{ width: 90, height: 90, position: 'relative' }}>
+                <div style={{ position: 'relative', width: 90, height: 90 }}>
                   {imageUrl ? (
                     <Image
                       src={imageUrl}
                       alt={item.name}
                       fill
                       style={{ objectFit: 'cover', borderRadius: 6 }}
+                      sizes="90px"
                     />
                   ) : (
                     <div style={imgPlaceholder} />
@@ -181,7 +181,7 @@ export default function OrdersPage() {
   )
 }
 
-/* ========= HELPERS ========= */
+/* ================= HELPERS ================= */
 
 function Header({
   label,
@@ -200,7 +200,10 @@ function Header({
 
 function reorderItem(item: OrderItem) {
   const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-  cart.push({ productId: item.product_id, qty: item.qty })
+  cart.push({
+    productId: item.product_id,
+    qty: item.qty,
+  })
   localStorage.setItem('cart', JSON.stringify(cart))
   window.location.href = '/checkout'
 }
@@ -209,7 +212,7 @@ function downloadInvoice(orderId: string) {
   window.open(`/api/orders/${orderId}/invoice`, '_blank')
 }
 
-/* ========= STYLES ========= */
+/* ================= STYLES ================= */
 
 const searchBox: React.CSSProperties = {
   width: '100%',
@@ -267,4 +270,3 @@ const imgPlaceholder: React.CSSProperties = {
   background: '#e5e7eb',
   borderRadius: 6,
 }
-``
