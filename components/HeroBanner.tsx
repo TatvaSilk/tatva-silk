@@ -57,16 +57,16 @@ export default function HeroBanner() {
   if (!slides.length) return null
 
   return (
-    <div style={{ maxWidth: 1200, margin: '16px auto' }}>
+    <div style={{ maxWidth: 1200, margin: '20px auto' }}>
       <div onMouseEnter={stop} onMouseLeave={start}>
         <div
           style={{
             position: 'relative',
-            maxHeight: 420,      // ✅ LIMIT HEIGHT
+            maxHeight: 420,
             minHeight: 260,
             overflow: 'hidden',
-            borderRadius: 12,
-            background: '#f8fafc',
+            borderRadius: 14,
+            background: '#0b1220', // ✅ dark base
           }}
         >
           <div
@@ -88,44 +88,56 @@ export default function HeroBanner() {
                   alignItems: 'center',
                 }}
               >
-                {/* ✅ SCALED IMAGE */}
+                {/* ✅ IMAGE */}
                 <Image
                   src={s.img}
                   alt={s.title}
                   width={1200}
-                  height={800}
+                  height={600}
                   style={{
                     maxHeight: 420,
                     width: 'auto',
-                    height: '100%',
                     objectFit: 'contain',
+                    filter: 'brightness(0.92)', // ✅ slight dim
                   }}
                   priority
                 />
 
-                {/* ✅ TEXT CARD */}
+                {/* ✅ GRADIENT OVERLAY */}
                 <div
                   style={{
                     position: 'absolute',
-                    left: 24,
-                    top: 24,
-                    maxWidth: 520,
-                    background: 'rgba(255,255,255,0.95)',
-                    borderRadius: 10,
-                    padding: 18,
+                    inset: 0,
+                    background:
+                      'linear-gradient(90deg, rgba(11,18,32,0.85) 0%, rgba(11,18,32,0.45) 40%, rgba(11,18,32,0) 70%)',
+                  }}
+                />
+
+                {/* ✅ TEXT CONTENT */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 32,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    maxWidth: 460,
+                    color: '#f8fafc',
                   }}
                 >
-                  <h2 style={{ marginBottom: 6 }}>{s.title}</h2>
-                  <p style={{ marginBottom: 12, color: '#555' }}>{s.text}</p>
+                  <h2 style={{ marginBottom: 8 }}>{s.title}</h2>
+                  <p style={{ marginBottom: 14, color: '#cbd5e1' }}>
+                    {s.text}
+                  </p>
                   <Link href={s.cta_href}>
                     <button
                       style={{
                         background: '#f59e0b',
                         border: 'none',
-                        padding: '9px 16px',
+                        padding: '10px 18px',
                         borderRadius: 8,
                         cursor: 'pointer',
                         fontWeight: 700,
+                        color: '#111827',
                       }}
                     >
                       {s.cta_label}
@@ -141,7 +153,7 @@ export default function HeroBanner() {
             <div
               style={{
                 position: 'absolute',
-                bottom: 12,
+                bottom: 14,
                 width: '100%',
                 display: 'flex',
                 justifyContent: 'center',
@@ -157,7 +169,7 @@ export default function HeroBanner() {
                     height: 10,
                     borderRadius: '50%',
                     border: 'none',
-                    background: i === idx ? '#334155' : '#cbd5e1',
+                    background: i === idx ? '#f59e0b' : '#64748b',
                     cursor: 'pointer',
                   }}
                 />
