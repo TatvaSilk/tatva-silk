@@ -44,6 +44,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     async function loadOrders() {
+      // 1. Get logged in auth user
       const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -54,7 +55,21 @@ export default function OrdersPage() {
         return
       }
 
-      const { data } = await supabase
+      // 2. Get customer profile mapped to auth user
+      const { data: customer } = await supabase
+        .from('customer_profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (!customer) {
+        setOrders([])
+        setLoading(false)
+        return
+      }
+
+      // 3. Fetch orders for this customer
+      const { data: ordersData } = await supabase
         .from('orders')
         .select(`
           id,
@@ -74,10 +89,10 @@ export default function OrdersPage() {
             )
           )
         `)
-        .eq('customer_id', user.id)   // ✅ IMPORTANT: your column is customer_id
+        .eq('customer_id', customer.id)
         .order('created_at', { ascending: false })
 
-      setOrders(data ?? [])
+      setOrders(ordersData ?? [])
       setLoading(false)
     }
 
@@ -87,10 +102,10 @@ export default function OrdersPage() {
   const filteredOrders = useMemo(() => {
     if (!search) return orders
     const q = search.toLowerCase()
-    return orders.filter(order =>
-      order.order_no.toLowerCase().includes(q) ||
-      order.order_items.some(item =>
-        item.name.toLowerCase().includes(q)
+    return orders.filter(o =>
+      o.order_no.toLowerCase().includes(q) ||
+      o.order_items.some(i =>
+        i.name.toLowerCase().includes(q)
       )
     )
   }, [orders, search])
@@ -128,7 +143,7 @@ export default function OrdersPage() {
           {order.order_items.map(item => {
             const imageUrl =
               item.product_images
-                .sort((a, b) => a.sort_order - b.sort_order)[0]
+                ?.sort((a, b) => a.sort_order - b.sort_order)[0]
                 ?.url
 
             return (
@@ -152,25 +167,21 @@ export default function OrdersPage() {
                   <strong>₹{item.price * item.qty}</strong>
 
                   <div style={actionsRow}>
-                    <Link href={`/orders/${order.id}`}>View order</Link>
+                    <Link href={`/orders/${order.id}`}>View Order</Link>
 
                     <button
                       onClick={() => downloadInvoice(order.id)}
                       style={linkBtn}
                     >
-                      📄 Download invoice
+                      Download Invoice
                     </button>
 
                     <button
                       onClick={() => reorderItem(item)}
                       style={linkBtn}
                     >
-                      🔁 Re‑order
+                      Re‑order
                     </button>
-
-                    <span style={{ color: '#6b7280' }}>
-                      📦 Track order
-                    </span>
                   </div>
                 </div>
               </div>
@@ -210,6 +221,8 @@ const searchBox: React.CSSProperties = {
   width: '100%',
   padding: 10,
   marginBottom: 20,
+  borderRadius: 6,
+  border: '1px solid #ccc',
 }
 
 const orderCard: React.CSSProperties = {
