@@ -34,6 +34,7 @@ type Order = {
   created_at: string
   grand_total: number
   status: string
+  customer_id: string
   order_items: OrderItem[]
 }
 
@@ -45,30 +46,45 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    supabase
-      .from('orders')
-      .select(`
-        id,
-        order_no,
-        created_at,
-        grand_total,
-        status,
-        order_items (
-          id,
-          name,
-          price,
-          qty,
-          product_id,
-          product:products (
-            product_images ( url, sort_order )
-          )
-        )
-      `)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setOrders((data ?? []) as Order[])
+    async function loadOrders() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        setOrders([])
         setLoading(false)
-      })
+        return
+      }
+
+      const { data } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          order_no,
+          created_at,
+          grand_total,
+          status,
+          customer_id,
+          order_items (
+            id,
+            name,
+            price,
+            qty,
+            product_id,
+            product:products (
+              product_images ( url, sort_order )
+            )
+          )
+        `)
+        .eq('customer_id', user.id)   -- ✅ SECURITY FIX
+        .order('created_at', { ascending: false })
+
+      setOrders(data ?? [])
+      setLoading(false)
+    }
+
+    loadOrders()
   }, [])
 
   const filteredOrders = useMemo(() => {
@@ -90,7 +106,6 @@ export default function OrdersPage() {
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
       <h1 style={{ fontSize: 26, marginBottom: 12 }}>Your Orders</h1>
 
-      {/* SEARCH */}
       <input
         placeholder="Search by order number or product name"
         value={search}
@@ -150,7 +165,7 @@ export default function OrdersPage() {
                   borderTop: '1px solid #eee',
                 }}
               >
-                {/* IMAGE (PLAIN IMG — SAFE) */}
+                {/* IMAGE */}
                 <div style={{ width: 90, height: 90 }}>
                   {imageUrl ? (
                     <img
@@ -161,7 +176,6 @@ export default function OrdersPage() {
                         height: 90,
                         objectFit: 'cover',
                         borderRadius: 6,
-                        display: 'block',
                       }}
                     />
                   ) : (
@@ -179,66 +193,32 @@ export default function OrdersPage() {
                 {/* DETAILS */}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{item.name}</div>
-
                   <div style={{ marginTop: 6 }}>
                     ₹{item.price} × {item.qty}
                   </div>
-
                   <strong>₹{item.price * item.qty}</strong>
 
-                  <div
-                    style={{
-                      marginTop: 10,
-                      display: 'flex',
-                      gap: 16,
-                    }}
-                  >
+                  <div style={{ marginTop: 10, display: 'flex', gap: 16 }}>
                     <Link href={`/orders/${order.id}`}>View order</Link>
 
                     <button
-                      onClick={() =>
-                        window.open(`/api/orders/${order.id}/invoice`)
-                      }
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        color: '#2563eb',
-                        cursor: 'pointer',
-                      }}
+                      style={btnStyle}
+                      onClick={() => window.open(`/api/orders/${order.id}/invoice`)}
                     >
                       Download invoice
                     </button>
 
                     <button
+                      style={btnStyle}
                       onClick={() => {
-                        const cart = JSON.parse(
-                          localStorage.getItem('cart') || '[]'
-                        )
-                        cart.push({
-                          productId: item.product_id,
-                          qty: item.qty,
-                        })
-                        localStorage.setItem(
-                          'cart',
-                          JSON.stringify(cart)
-                        )
+                        const cart = JSON.parse(localStorage.getItem('cart') || '[]')
+                        cart.push({ productId: item.product_id, qty: item.qty })
+                        localStorage.setItem('cart', JSON.stringify(cart))
                         window.location.href = '/checkout'
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        color: '#2563eb',
-                        cursor: 'pointer',
                       }}
                     >
                       Re‑order
                     </button>
-
-                    <span style={{ color: '#6b7280' }}>
-                      Track order
-                    </span>
                   </div>
                 </div>
               </div>
@@ -250,7 +230,7 @@ export default function OrdersPage() {
   )
 }
 
-/* ========== HELPERS ========== */
+/* ========== UI ========== */
 
 function Header({
   label,
@@ -266,3 +246,12 @@ function Header({
     </div>
   )
 }
+
+const btnStyle: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  color: '#2563eb',
+  cursor: 'pointer',
+}
+``
