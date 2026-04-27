@@ -9,7 +9,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-/* ========== TYPES ========== */
+/* ========= TYPES ========= */
 
 type ProductImage = {
   url: string
@@ -38,7 +38,7 @@ type Order = {
   order_items: OrderItem[]
 }
 
-/* ========== PAGE ========== */
+/* ========= PAGE ========= */
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -77,7 +77,7 @@ export default function OrdersPage() {
             )
           )
         `)
-        .eq('customer_id', user.id)   -- ✅ SECURITY FIX
+        .eq('customer_id', user.id)
         .order('created_at', { ascending: false })
 
       setOrders(data ?? [])
@@ -131,14 +131,12 @@ export default function OrdersPage() {
             background: '#fff',
           }}
         >
-          {/* HEADER */}
           <div
             style={{
               padding: 12,
               background: '#f3f4f6',
               display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 12,
+              gridTemplateColumns: 'repeat(4,1fr)',
               fontSize: 13,
             }}
           >
@@ -150,7 +148,6 @@ export default function OrdersPage() {
             <Header label="STATUS">{order.status}</Header>
           </div>
 
-          {/* ITEMS */}
           {order.order_items.map(item => {
             const imageUrl =
               item.product?.[0]?.product_images?.[0]?.url || null
@@ -165,18 +162,14 @@ export default function OrdersPage() {
                   borderTop: '1px solid #eee',
                 }}
               >
-                {/* IMAGE */}
                 <div style={{ width: 90, height: 90 }}>
                   {imageUrl ? (
                     <img
                       src={imageUrl}
                       alt={item.name}
-                      style={{
-                        width: 90,
-                        height: 90,
-                        objectFit: 'cover',
-                        borderRadius: 6,
-                      }}
+                      width={90}
+                      height={90}
+                      style={{ borderRadius: 6, objectFit: 'cover' }}
                     />
                   ) : (
                     <div
@@ -190,12 +183,9 @@ export default function OrdersPage() {
                   )}
                 </div>
 
-                {/* DETAILS */}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{item.name}</div>
-                  <div style={{ marginTop: 6 }}>
-                    ₹{item.price} × {item.qty}
-                  </div>
+                  <div>₹{item.price} × {item.qty}</div>
                   <strong>₹{item.price * item.qty}</strong>
 
                   <div style={{ marginTop: 10, display: 'flex', gap: 16 }}>
@@ -203,7 +193,9 @@ export default function OrdersPage() {
 
                     <button
                       style={btnStyle}
-                      onClick={() => window.open(`/api/orders/${order.id}/invoice`)}
+                      onClick={() =>
+                        window.open(`/api/orders/${order.id}/invoice`)
+                      }
                     >
                       Download invoice
                     </button>
@@ -211,8 +203,13 @@ export default function OrdersPage() {
                     <button
                       style={btnStyle}
                       onClick={() => {
-                        const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-                        cart.push({ productId: item.product_id, qty: item.qty })
+                        const cart = JSON.parse(
+                          localStorage.getItem('cart') || '[]'
+                        )
+                        cart.push({
+                          productId: item.product_id,
+                          qty: item.qty,
+                        })
                         localStorage.setItem('cart', JSON.stringify(cart))
                         window.location.href = '/checkout'
                       }}
@@ -229,8 +226,6 @@ export default function OrdersPage() {
     </main>
   )
 }
-
-/* ========== UI ========== */
 
 function Header({
   label,
@@ -254,4 +249,3 @@ const btnStyle: React.CSSProperties = {
   color: '#2563eb',
   cursor: 'pointer',
 }
-``
