@@ -1,126 +1,177 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
-import { formatINR } from '@/lib/money'
 
-type OrderItem = {
-  id: string
-  name: string
-  price: number // ✅ price in paise
-  qty: number
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 type Order = {
   id: string
-  order_no: string | null
+  order_no: string
   created_at: string
-  status: string | null
-  payment_status: string | null
-  items_count: number | null
-  subtotal: number | null
-  delivery_fee: number | null
-  discount: number | null
-  grand_total: number | null
-  shipping_name: string | null
-  shipping_phone: string | null
-  shipping_address_line1: string | null
-  shipping_address_line2: string | null
-  shipping_city: string | null
-  shipping_state: string | null
-  shipping_pin: string | null
-  order_items: OrderItem[]
+  grand_total: number
+  status: string
+  order_items: {
+    id: string
+    name: string
+    price: number
+    qty: number
+    product_id: string
+    image?: string
+  }[]
 }
 
-export default function OrdersPage() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-
-  const [orders, setOrders] = useState<Order[] | null>(null)
+export default function MyOrdersPage() {
+  const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   useEffect(() => {
-    ;(async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return setLoading(false)
-
-        const { data, error } = await supabase
-          .from('orders')
-          .select(`
-            id, order_no, created_at, status, payment_status,
-            items_count, subtotal, delivery_fee, discount, grand_total,
-            shipping_name, shipping_phone, shipping_address_line1,
-            shipping_city, shipping_state, shipping_pin,
-            order_items (
-              id,
-              name,
-              price,
-              qty
-            )
-          `)
-          .eq('customer_id', user.id)
-          .order('created_at', { ascending: false })
-
-        if (error) throw error
-        setOrders(data as Order[])
-      } catch (err: any) {
-        setErrorMsg(err.message)
-      } finally {
+    supabase
+      .from('orders')
+      .select(`
+        id,
+        order_no,
+        created_at,
+        grand_total,
+        status,
+        order_items (
+          id,
+          name,
+          price,
+          qty,
+          product_id
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        setOrders(data ?? [])
         setLoading(false)
-      }
-    })()
+      })
   }, [])
 
-  if (loading) return <p style={{ padding: 40 }}>Loading…</p>
-  if (errorMsg) return <p style={{ padding: 40, color: 'crimson' }}>{errorMsg}</p>
+  if (loading) {
+    return <div style={{ padding: 20 }}>Loading orders…</div>
+  }
 
   return (
-    <main style={{ padding: 40 }}>
-      <Link href="/account">← Back</Link>
-      <h1>My Orders</h1>
+    <main style={{ maxWidth: 1000, margin: '0 auto', padding: 20 }}>
+      <h1 style={{ fontSize: 24, marginBottom: 20 }}>Your Orders</h1>
 
-      {!orders?.length ? (
-        <p>No orders yet.</p>
-      ) : (
-        <ul style={{ display: 'grid', gap: 16 }}>
-          {orders.map(o => (
-            <li key={o.id} style={{ border: '1px solid #e5e7eb', padding: 16 }}>
-              <strong>{o.order_no}</strong>
-              <div>{new Date(o.created_at).toLocaleString('en-IN')}</div>
+      {orders.length === 0 && <p>No orders found.</p>}
 
-              <hr />
+      {orders.map(order => (
+        <div
+          key={order.id}
+          style={{
+            border: '1px solid #ddd',
+            borderRadius: 8,
+            marginBottom: 20,
+            background: '#fff',
+          }}
+        >
+          {/* ORDER HEADER */}
+          <div
+            style={{
+              padding: 12,
+              background: '#f3f4f6',
+              display: 'flex',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              rowGap: 8,
+            }}
+          >
+            <div>
+              <div style={label}>ORDER PLACED</div>
+              <div>{new Date(order.created_at).toLocaleDateString()}</div>
+            </div>
 
-              {o.order_items.map(i => (
-                <div key={i.id}>
-                  {i.name} × {i.qty} — {formatINR(i.price * i.qty)}
-                </div>
-              ))}
+            <div>
+              <div style={label}>TOTAL</div>
+              <div>₹{order.grand_total}</div>
+            </div>
 
-              <hr />
+            <div>
+              <div style={label}>ORDER #</div>
+              <div>{order.order_no}</div>
+            </div>
 
-              <div>Subtotal: {formatINR(o.subtotal)}</div>
-              <div>Delivery: {formatINR(o.delivery_fee)}</div>
-              <div>Discount: {formatINR(o.discount)}</div>
-              <strong>Total: {formatINR(o.grand_total)}</strong>
-
-              <hr />
-
-              <div>
-                <strong>Shipping</strong>
-                <div>{o.shipping_name} • {o.shipping_phone}</div>
-                <div>{o.shipping_address_line1}</div>
-                <div>{o.shipping_city}, {o.shipping_state} – {o.shipping_pin}</div>
+            <div>
+              <div style={label}>STATUS</div>
+              <div style={{ textTransform: 'capitalize' }}>
+                {order.status}
               </div>
-            </li>
+            </div>
+          </div>
+
+          {/* ITEMS */}
+          {order.order_items.map(item => (
+            <div
+              key={item.id}
+              style={{
+                display: 'flex',
+                gap: 16,
+                padding: 16,
+                borderTop: '1px solid #eee',
+              }}
+            >
+              {/* IMAGE */}
+              <div style={{ width: 90, height: 90, background: '#f9fafb' }}>
+                <Image
+                  src={item.image || '/placeholder.png'}
+                  alt={item.name}
+                  width={90}
+                  height={90}
+                  style={{ objectFit: 'contain' }}
+                />
+              </div>
+
+              {/* DETAILS */}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600 }}>{item.name}</div>
+                <div style={{ marginTop: 6 }}>
+                  ₹{item.price} × {item.qty}
+                </div>
+                <div style={{ marginTop: 4 }}>
+                  <strong>
+                    ₹{item.price * item.qty}
+                  </strong>
+                </div>
+
+                <div style={{ marginTop: 8, display: 'flex', gap: 12 }}>
+                  <Link href={`/orders/${order.id}`}>
+                    View order
+                  </Link>
+
+                  <button
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      color: '#2563eb',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Download invoice
+                  </button>
+                </div>
+              </div>
+            </div>
           ))}
-        </ul>
-      )}
+        </div>
+      ))}
     </main>
   )
 }
-``
+
+/* ========= styles ========= */
+
+const label: React.CSSProperties = {
+  fontSize: 11,
+  color: '#6b7280',
+  marginBottom: 2,
+}
