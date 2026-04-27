@@ -10,14 +10,11 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-/* ========== TYPES ========== */
+/* ========= TYPES ========= */
 
 type ProductImage = {
   url: string
-}
-
-type ProductJoin = {
-  product_images: ProductImage[]
+  sort_order: number
 }
 
 type OrderItem = {
@@ -26,7 +23,7 @@ type OrderItem = {
   price: number
   qty: number
   product_id: string
-  product: ProductJoin[] | null
+  product_images: ProductImage[]
 }
 
 type Order = {
@@ -38,7 +35,7 @@ type Order = {
   order_items: OrderItem[]
 }
 
-/* ========== PAGE ========== */
+/* ========= PAGE ========= */
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -60,14 +57,15 @@ export default function OrdersPage() {
           price,
           qty,
           product_id,
-          product:products (
-            product_images ( url, sort_order )
+          product_images (
+            url,
+            sort_order
           )
         )
       `)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
-        setOrders((data ?? []) as Order[])
+        setOrders(data ?? [])
         setLoading(false)
       })
   }, [])
@@ -91,7 +89,6 @@ export default function OrdersPage() {
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
       <h1 style={{ fontSize: 26, marginBottom: 12 }}>Your Orders</h1>
 
-      {/* SEARCH */}
       <input
         placeholder="Search by order number or product name"
         value={search}
@@ -103,30 +100,23 @@ export default function OrdersPage() {
 
       {filteredOrders.map(order => (
         <div key={order.id} style={orderCard}>
-          {/* HEADER */}
           <div style={headerGrid}>
             <Header label="ORDER PLACED">
               {new Date(order.created_at).toLocaleDateString()}
             </Header>
-            <Header label="TOTAL">
-              ₹{order.grand_total}
-            </Header>
-            <Header label="ORDER #">
-              {order.order_no}
-            </Header>
-            <Header label="STATUS">
-              {order.status}
-            </Header>
+            <Header label="TOTAL">₹{order.grand_total}</Header>
+            <Header label="ORDER #">{order.order_no}</Header>
+            <Header label="STATUS">{order.status}</Header>
           </div>
 
-          {/* ITEMS */}
           {order.order_items.map(item => {
             const imageUrl =
-              item.product?.[0]?.product_images?.[0]?.url
+              item.product_images
+                ?.sort((a, b) => a.sort_order - b.sort_order)[0]
+                ?.url
 
             return (
               <div key={item.id} style={itemRow}>
-                {/* IMAGE */}
                 <div style={{ width: 90, height: 90, position: 'relative' }}>
                   {imageUrl ? (
                     <Image
@@ -140,36 +130,17 @@ export default function OrdersPage() {
                   )}
                 </div>
 
-                {/* DETAILS */}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{item.name}</div>
 
-                  <div style={{ marginTop: 6 }}>
-                    ₹{item.price} × {item.qty}
-                  </div>
-
+                  <div>₹{item.price} × {item.qty}</div>
                   <strong>₹{item.price * item.qty}</strong>
 
                   <div style={actionsRow}>
                     <Link href={`/orders/${order.id}`}>View order</Link>
-
-                    <button
-                      onClick={() => downloadInvoice(order.id)}
-                      style={linkBtn}
-                    >
-                      📄 Download invoice
-                    </button>
-
-                    <button
-                      onClick={() => reorderItem(item)}
-                      style={linkBtn}
-                    >
-                      🔁 Re-order
-                    </button>
-
-                    <span style={{ color: '#6b7280' }}>
-                      📦 Track order
-                    </span>
+                    <button style={linkBtn}>Download invoice</button>
+                    <button style={linkBtn}>Re-order</button>
+                    <span style={{ color: '#6b7280' }}>Track order</span>
                   </div>
                 </div>
               </div>
@@ -181,15 +152,9 @@ export default function OrdersPage() {
   )
 }
 
-/* ========== HELPERS ========== */
+/* ========= UI ========= */
 
-function Header({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
+function Header({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <div style={headerLabel}>{label}</div>
@@ -198,72 +163,12 @@ function Header({
   )
 }
 
-function reorderItem(item: OrderItem) {
-  const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-  cart.push({ productId: item.product_id, qty: item.qty })
-  localStorage.setItem('cart', JSON.stringify(cart))
-  window.location.href = '/checkout'
-}
-
-function downloadInvoice(orderId: string) {
-  window.open(`/api/orders/${orderId}/invoice`, '_blank')
-}
-
-/* ========== STYLES ========== */
-
-const searchBox: React.CSSProperties = {
-  width: '100%',
-  padding: 10,
-  marginBottom: 20,
-  borderRadius: 6,
-  border: '1px solid #ccc',
-}
-
-const orderCard: React.CSSProperties = {
-  border: '1px solid #ddd',
-  borderRadius: 8,
-  marginBottom: 20,
-  background: '#fff',
-}
-
-const headerGrid: React.CSSProperties = {
-  padding: 12,
-  background: '#f3f4f6',
-  display: 'grid',
-  gridTemplateColumns: 'repeat(4, 1fr)',
-  gap: 12,
-  fontSize: 13,
-}
-
-const itemRow: React.CSSProperties = {
-  display: 'flex',
-  gap: 16,
-  padding: 16,
-  borderTop: '1px solid #eee',
-}
-
-const actionsRow: React.CSSProperties = {
-  marginTop: 10,
-  display: 'flex',
-  gap: 16,
-}
-
-const headerLabel: React.CSSProperties = {
-  fontSize: 11,
-  color: '#6b7280',
-}
-
-const linkBtn: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  padding: 0,
-  color: '#2563eb',
-  cursor: 'pointer',
-}
-
-const imgPlaceholder: React.CSSProperties = {
-  width: 90,
-  height: 90,
-  background: '#e5e7eb',
-  borderRadius: 6,
-}
+const searchBox = { width: '100%', padding: 10, marginBottom: 20 }
+const orderCard = { border: '1px solid #ddd', borderRadius: 8, marginBottom: 20 }
+const headerGrid = { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', padding: 12, background: '#f3f4f6' }
+const itemRow = { display: 'flex', gap: 16, padding: 16, borderTop: '1px solid #eee' }
+const actionsRow = { display: 'flex', gap: 16, marginTop: 10 }
+const headerLabel = { fontSize: 11, color: '#6b7280' }
+const linkBtn = { background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer' }
+const imgPlaceholder = { width: 90, height: 90, background: '#e5e7eb', borderRadius: 6 }
+``
