@@ -112,12 +112,11 @@ export default function OrdersPage() {
           {order.order_items.map(item => {
             const imageUrl =
               item.product_images
-                ?.sort((a, b) => a.sort_order - b.sort_order)[0]
+                .sort((a, b) => a.sort_order - b.sort_order)[0]
                 ?.url
 
             return (
               <div key={item.id} style={itemRow}>
-                {/* IMAGE */}
                 <div style={{ width: 90, height: 90, position: 'relative' }}>
                   {imageUrl ? (
                     <Image
@@ -131,14 +130,13 @@ export default function OrdersPage() {
                   )}
                 </div>
 
-                {/* DETAILS */}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{item.name}</div>
                   <div>₹{item.price} × {item.qty}</div>
                   <strong>₹{item.price * item.qty}</strong>
 
                   <div style={actionsRow}>
-                    /orders/{order.id}View order</Link>
+                    <Link href={`/orders/${order.id}`}>View order</Link>
                     <button style={linkBtn}>Download invoice</button>
                     <button style={linkBtn}>Re‑order</button>
                   </div>
@@ -163,58 +161,11 @@ function Header({ label, children }: { label: string; children: React.ReactNode 
   )
 }
 
-const searchBox: React.CSSProperties = {
-  width: '100%',
-  padding: 10,
-  marginBottom: 20,
-  borderRadius: 6,
-  border: '1px solid #ccc',
-}
-
-const orderCard: React.CSSProperties = {
-  border: '1px solid #ddd',
-  borderRadius: 8,
-  marginBottom: 20,
-  background: '#fff',
-}
-
-const headerGrid: React.CSSProperties = {
-  padding: 12,
-  background: '#f3f4f6',
-  display: 'grid',
-  gridTemplateColumns: 'repeat(4, 1fr)',
-  fontSize: 13,
-}
-
-const itemRow: React.CSSProperties = {
-  display: 'flex',
-  gap: 16,
-  padding: 16,
-  borderTop: '1px solid #eee',
-}
-
-const actionsRow: React.CSSProperties = {
-  display: 'flex',
-  gap: 16,
-  marginTop: 10,
-}
-
-const headerLabel: React.CSSProperties = {
-  fontSize: 11,
-  color: '#6b7280',
-}
-
-const linkBtn: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  color: '#2563eb',
-  cursor: 'pointer',
-}
-
-const imgPlaceholder: React.CSSProperties = {
-  width: 90,
-  height: 90,
-  background: '#e5e7eb',
-  borderRadius: 6,
-}
-``
+const searchBox = { width: '100%', padding: 10, marginBottom: 20 }
+const orderCard = { border: '1px solid #ddd', borderRadius: 8, marginBottom: 20 }
+const headerGrid = { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', padding: 12, background: '#f3f4f6' }
+const itemRow = { display: 'flex', gap: 16, padding: 16, borderTop: '1px solid #eee' }
+const actionsRow = { display: 'flex', gap: 16, marginTop: 10 }
+const headerLabel = { fontSize: 11, color: '#6b7280' }
+const linkBtn = { background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer' }
+const imgPlaceholder = { width: 90, height: 90, background: '#e5e7eb', borderRadius: 6 }
