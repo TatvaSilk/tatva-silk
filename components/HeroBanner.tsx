@@ -62,8 +62,11 @@ export default function HeroBanner() {
         <div
           style={{
             position: 'relative',
+            maxHeight: 420,      // ✅ LIMIT HEIGHT
+            minHeight: 260,
             overflow: 'hidden',
             borderRadius: 12,
+            background: '#f8fafc',
           }}
         >
           <div
@@ -80,31 +83,32 @@ export default function HeroBanner() {
                 style={{
                   minWidth: `${100 / total}%`,
                   position: 'relative',
-                  background: '#f9fafb',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
                 }}
               >
-                {/* ✅ IMAGE DEFINES HEIGHT */}
-                <div style={{ position: 'relative', width: '100%' }}>
-                  <Image
-                    src={s.img}
-                    alt={s.title}
-                    width={1200}
-                    height={800}          // ✅ auto scales correctly
-                    style={{
-                      width: '100%',
-                      height: 'auto',
-                      objectFit: 'contain',
-                    }}
-                    priority
-                  />
-                </div>
+                {/* ✅ SCALED IMAGE */}
+                <Image
+                  src={s.img}
+                  alt={s.title}
+                  width={1200}
+                  height={800}
+                  style={{
+                    maxHeight: 420,
+                    width: 'auto',
+                    height: '100%',
+                    objectFit: 'contain',
+                  }}
+                  priority
+                />
 
-                {/* ✅ TEXT OVERLAY */}
+                {/* ✅ TEXT CARD */}
                 <div
                   style={{
                     position: 'absolute',
-                    top: 24,
                     left: 24,
+                    top: 24,
                     maxWidth: 520,
                     background: 'rgba(255,255,255,0.95)',
                     borderRadius: 10,
@@ -132,12 +136,12 @@ export default function HeroBanner() {
             ))}
           </div>
 
-          {/* DOTS */}
+          {/* ✅ DOTS */}
           {slides.length > 1 && (
             <div
               style={{
                 position: 'absolute',
-                bottom: 14,
+                bottom: 12,
                 width: '100%',
                 display: 'flex',
                 justifyContent: 'center',
