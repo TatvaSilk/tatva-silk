@@ -51,11 +51,7 @@ export default function HeroBanner() {
       .eq('is_active', true)
       .order('sort_order')
       .then(({ data, error }) => {
-        if (error) {
-          console.error('Hero banner fetch error:', error)
-        } else {
-          setSlides(data ?? [])
-        }
+        if (!error) setSlides(data ?? [])
       })
   }, [])
 
@@ -72,9 +68,10 @@ export default function HeroBanner() {
         <div
           style={{
             position: 'relative',
-            height: 320,
+            height: 420,                 // ✅ taller for portrait images
             overflow: 'hidden',
             borderRadius: 12,
+            background: '#f8fafc',       // ✅ clean background
           }}
         >
           <div
@@ -86,44 +83,46 @@ export default function HeroBanner() {
               transition: 'transform 0.6s ease',
             }}
           >
-            {slides.map((s) => (
+            {slides.map(s => (
               <div
                 key={s.id}
                 style={{ minWidth: `${100 / total}%`, position: 'relative' }}
               >
-                {/* ✅ IMAGE */}
+                {/* ✅ FULL IMAGE (NO CROP) */}
                 <Image
                   src={s.img}
                   alt={s.title}
                   fill
                   sizes="100vw"
-                  style={{ objectFit: 'cover' }}
+                  style={{
+                    objectFit: 'contain',     // ✅ IMPORTANT FIX
+                  }}
                   priority
                 />
 
-                {/* ✅ CARD */}
+                {/* ✅ TEXT CARD */}
                 <div
                   style={{
                     position: 'absolute',
-                    top: 20,
-                    left: 20,
+                    top: 24,
+                    left: 24,
                     maxWidth: 520,
-                    background: 'rgba(255,255,255,0.9)',
-                    borderRadius: 8,
-                    padding: 16,
+                    background: 'rgba(255,255,255,0.94)',
+                    borderRadius: 10,
+                    padding: 18,
                   }}
                 >
                   <h2 style={{ marginBottom: 6 }}>{s.title}</h2>
-                  <p style={{ marginBottom: 10, color: '#555' }}>{s.text}</p>
+                  <p style={{ marginBottom: 12, color: '#555' }}>{s.text}</p>
                   <Link href={s.cta_href}>
                     <button
                       style={{
                         background: '#f59e0b',
                         border: 'none',
-                        padding: '8px 14px',
-                        borderRadius: 6,
+                        padding: '9px 16px',
+                        borderRadius: 8,
                         cursor: 'pointer',
-                        fontWeight: 600,
+                        fontWeight: 700,
                       }}
                     >
                       {s.cta_label}
@@ -138,7 +137,7 @@ export default function HeroBanner() {
           <div
             style={{
               position: 'absolute',
-              bottom: 12,
+              bottom: 14,
               width: '100%',
               display: 'flex',
               justifyContent: 'center',
