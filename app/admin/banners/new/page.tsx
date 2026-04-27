@@ -11,137 +11,59 @@ const supabase = createClient(
 
 export default function NewBannerPage() {
   const router = useRouter()
+  const [form, setForm] = useState<any>({
+    title: '',
+    text: '',
+    cta_label: '',
+    cta_href: '',
+    gradient_color: '#0b1220',
+    theme: 'dark',
+    sort_order: 1,
+    is_active: true,
+  })
+  const [img, setImg] = useState<File | null>(null)
+  const [mobileImg, setMobileImg] = useState<File | null>(null)
 
-  const [title, setTitle] = useState('')
-  const [text, setText] = useState('')
-  const [ctaLabel, setCtaLabel] = useState('')
-  const [ctaHref, setCtaHref] = useState('')
-  const [sortOrder, setSortOrder] = useState(1)
-  const [isActive, setIsActive] = useState(true)
-  const [imageFile, setImageFile] = useState<File | null>(null)
+  async function upload(file: File) {
+    const name = `${Date.now()}-${file.name}`
+    await supabase.storage.from('banners').upload(name, file)
+    return supabase.storage.from('banners').getPublicUrl(name).data.publicUrl
+  }
 
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function saveBanner() {
-    setError(null)
-
-    if (!title || !imageFile) {
-      setError('Title and Image are required')
-      return
-    }
-
-    setSaving(true)
-
-    // ✅ 1. Upload image to Supabase Storage
-    const fileName = `banner-${Date.now()}-${imageFile.name}`
-
-    const { error: uploadError } = await supabase.storage
-      .from('banners')
-      .upload(fileName, imageFile)
-
-    if (uploadError) {
-      setSaving(false)
-      setError(uploadError.message)
-      return
-    }
-
-    const { data } = supabase.storage
-      .from('banners')
-      .getPublicUrl(fileName)
-
-    const imageUrl = data.publicUrl
-
-    // ✅ 2. CALL SERVER API (NO DIRECT INSERT HERE)
+  async function save() {
     const res = await fetch('/api/admin/banners/create', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title,
-        text,
-        cta_label: ctaLabel,
-        cta_href: ctaHref,
-        img: imageUrl,
-        sort_order: sortOrder,
-        is_active: isActive,
+        ...form,
+        img: img ? await upload(img) : null,
+        mobile_img: mobileImg ? await upload(mobileImg) : null,
       }),
     })
-
-    const result = await res.json()
-
-    setSaving(false)
-
-    if (!res.ok) {
-      setError(result.error || 'Failed to save banner')
-      return
-    }
-
-    router.push('/admin/banners')
+    if (res.ok) router.push('/admin/banners')
   }
 
   return (
-    <main style={{ maxWidth: 640 }}>
-      <h1>Add New Banner</h1>
+    <main style={{ maxWidth: 600 }}>
+      <h2>Add Banner</h2>
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      <input placeholder="Title" onChange={e => setForm({ ...form, title: e.target.value })} />
+      <textarea placeholder="Text" onChange={e => setForm({ ...form, text: e.target.value })} />
 
-      <input
-        placeholder="Title"
-        value={title}
-        onChange={e => setTitle(e.target.value)}
-        style={{ width: '100%', marginBottom: 10 }}
-      />
+      <input type="file" onChange={e => setImg(e.target.files?.[0] ?? null)} />
+      <input type="file" onChange={e => setMobileImg(e.target.files?.[0] ?? null)} />
 
-      <textarea
-        placeholder="Description"
-        value={text}
-        onChange={e => setText(e.target.value)}
-        style={{ width: '100%', marginBottom: 10 }}
-      />
+      <input placeholder="Button Label" onChange={e => setForm({ ...form, cta_label: e.target.value })} />
+      <input placeholder="Button Link" onChange={e => setForm({ ...form, cta_href: e.target.value })} />
 
-      <input
-        type="file"
-        accept="image/*"
-        onChange={e => setImageFile(e.target.files?.[0] ?? null)}
-        style={{ marginBottom: 10 }}
-      />
+      <label>Gradient</label>
+      <input type="color" value={form.gradient_color} onChange={e => setForm({ ...form, gradient_color: e.target.value })} />
 
-      <input
-        placeholder="Button Label"
-        value={ctaLabel}
-        onChange={e => setCtaLabel(e.target.value)}
-        style={{ width: '100%', marginBottom: 10 }}
-      />
+      <select onChange={e => setForm({ ...form, theme: e.target.value })}>
+        <option value="dark">Dark</option>
+        <option value="light">Light</option>
+      </select>
 
-      <input
-        placeholder="Button Link"
-        value={ctaHref}
-        onChange={e => setCtaHref(e.target.value)}
-        style={{ width: '100%', marginBottom: 10 }}
-      />
-
-      <input
-        type="number"
-        placeholder="Sort order"
-        value={sortOrder}
-        onChange={e => setSortOrder(Number(e.target.value))}
-        style={{ width: '100%', marginBottom: 10 }}
-      />
-
-      <label>
-        <input
-          type="checkbox"
-          checked={isActive}
-          onChange={e => setIsActive(e.target.checked)}
-        />{' '}
-        Active
-      </label>
-
-      <br /><br />
-
-      <button onClick={saveBanner} disabled={saving}>
-        {saving ? 'Saving…' : 'Save Banner'}
-      </button>
+      <button onClick={save}>Save Banner</button>
     </main>
   )
 }
