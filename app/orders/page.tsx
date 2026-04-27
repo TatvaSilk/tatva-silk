@@ -44,7 +44,6 @@ export default function OrdersPage() {
 
   useEffect(() => {
     async function loadOrders() {
-      // ✅ 1. Get logged-in user
       const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -55,7 +54,6 @@ export default function OrdersPage() {
         return
       }
 
-      // ✅ 2. Fetch ONLY this user's orders + product_images
       const { data } = await supabase
         .from('orders')
         .select(`
@@ -76,7 +74,7 @@ export default function OrdersPage() {
             )
           )
         `)
-        .eq('customer_id', user.id)   -- ⚠️ CHANGE if column name is different
+        .eq('customer_id', user.id)   // ✅ IMPORTANT: your column is customer_id
         .order('created_at', { ascending: false })
 
       setOrders(data ?? [])
@@ -105,7 +103,6 @@ export default function OrdersPage() {
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
       <h1 style={{ fontSize: 26, marginBottom: 12 }}>Your Orders</h1>
 
-      {/* SEARCH */}
       <input
         placeholder="Search by order number or product name"
         value={search}
@@ -131,12 +128,11 @@ export default function OrdersPage() {
           {order.order_items.map(item => {
             const imageUrl =
               item.product_images
-                ?.sort((a, b) => a.sort_order - b.sort_order)[0]
+                .sort((a, b) => a.sort_order - b.sort_order)[0]
                 ?.url
 
             return (
               <div key={item.id} style={itemRow}>
-                {/* IMAGE */}
                 <div style={{ width: 90, height: 90, position: 'relative' }}>
                   {imageUrl ? (
                     <Image
@@ -150,7 +146,6 @@ export default function OrdersPage() {
                   )}
                 </div>
 
-                {/* DETAILS */}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{item.name}</div>
                   <div>₹{item.price} × {item.qty}</div>
@@ -215,8 +210,6 @@ const searchBox: React.CSSProperties = {
   width: '100%',
   padding: 10,
   marginBottom: 20,
-  borderRadius: 6,
-  border: '1px solid #ccc',
 }
 
 const orderCard: React.CSSProperties = {
