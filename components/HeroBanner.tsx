@@ -41,14 +41,19 @@ export default function HeroBanner() {
     timerRef.current = null
   }
 
+  // ✅ Fetch banners from Supabase
   useEffect(() => {
     supabase
       .from('home_banners')
       .select('*')
       .eq('is_active', true)
       .order('sort_order')
-      .then(({ data }) => {
-        if (data) setSlides(data)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Hero banner fetch error:', error)
+        } else if (data) {
+          setSlides(data)
+        }
       })
   }, [])
 
@@ -60,7 +65,7 @@ export default function HeroBanner() {
   if (!slides.length) return null
 
   return (
-    <div style={{ margin: '14px auto 16px', maxWidth: 1200 }}>
+    <div style={{ margin: '16px auto', maxWidth: 1200 }}>
       <div onMouseEnter={stop} onMouseLeave={start}>
         <div
           style={{
@@ -76,32 +81,55 @@ export default function HeroBanner() {
               width: `${total * 100}%`,
               height: '100%',
               transform: `translateX(-${idx * (100 / total)}%)`,
-              transition: 'transform .6s ease',
+              transition: 'transform 0.6s ease',
             }}
           >
-            {slides.map((s) => (
+            {slides.map((s, i) => (
               <div
                 key={s.id}
-                style={{ minWidth: `${100 / total}%`, position: 'relative' }}
+                style={{
+                  minWidth: `${100 / total}%`,
+                  position: 'relative',
+                }}
               >
-                {/* ✅ IMAGE */}
-                {s.img}
+                {/* ✅ BACKGROUND IMAGE */}
+                <Image
+                  src={s.img}
+                  alt={s.title}
+                  fill
+                  priority={i === 0}
+                  sizes="(max-width: 1024px) 100vw, 1200px"
+                  style={{ objectFit: 'cover' }}
+                />
 
-                {/* ✅ CONTENT */}
+                {/* ✅ CONTENT CARD */}
                 <div
                   style={{
                     position: 'absolute',
                     left: 20,
                     top: 20,
                     maxWidth: 520,
-                    background: 'rgba(255,255,255,.9)',
+                    background: 'rgba(255,255,255,0.9)',
                     borderRadius: 8,
                     padding: 16,
                   }}
                 >
                   <h2 style={{ marginBottom: 6 }}>{s.title}</h2>
-                  <p style={{ marginBottom: 10, color: '#555' }}>{s.text}</p>
-                  {s.cta_href}
+                  <p style={{ marginBottom: 10, color: '#555' }}>
+                    {s.text}
+                  </p>
+                  <Link
+                    href={s.cta_href}
+                    style={{
+                      display: 'inline-block',
+                      background: '#f59e0b',
+                      color: '#111827',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                    }}
+                  >
                     {s.cta_label}
                   </Link>
                 </div>
@@ -109,7 +137,7 @@ export default function HeroBanner() {
             ))}
           </div>
 
-          {/* DOTS */}
+          {/* ✅ DOTS */}
           <div
             style={{
               position: 'absolute',
@@ -140,3 +168,4 @@ export default function HeroBanner() {
     </div>
   )
 }
+``
