@@ -9,15 +9,11 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-/* ========== TYPES ========== */
+/* ================= TYPES ================= */
 
-type ProductImage = {
-  url: string
-}
+type ProductImage = { url: string }
 
-type ProductJoin = {
-  product_images: ProductImage[]
-}
+type ProductJoin = { product_images: ProductImage[] }
 
 type OrderItem = {
   id: string
@@ -37,7 +33,7 @@ type Order = {
   order_items: OrderItem[]
 }
 
-/* ========== PAGE ========== */
+/* ================= PAGE ================= */
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -66,7 +62,7 @@ export default function OrdersPage() {
       `)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
-        setOrders((data ?? []) as Order[])
+        setOrders(data ?? [])
         setLoading(false)
       })
   }, [])
@@ -74,11 +70,9 @@ export default function OrdersPage() {
   const filteredOrders = useMemo(() => {
     if (!search) return orders
     const q = search.toLowerCase()
-    return orders.filter(order =>
-      order.order_no.toLowerCase().includes(q) ||
-      order.order_items.some(item =>
-        item.name.toLowerCase().includes(q)
-      )
+    return orders.filter(o =>
+      o.order_no.toLowerCase().includes(q) ||
+      o.order_items.some(i => i.name.toLowerCase().includes(q))
     )
   }, [orders, search])
 
@@ -90,20 +84,41 @@ export default function OrdersPage() {
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
       <h1 style={{ fontSize: 26, marginBottom: 12 }}>Your Orders</h1>
 
-      {/* SEARCH */}
       <input
         placeholder="Search by order number or product name"
         value={search}
         onChange={e => setSearch(e.target.value)}
-        style={searchBox}
+        style={{
+          width: '100%',
+          padding: 10,
+          marginBottom: 20,
+          borderRadius: 6,
+          border: '1px solid #ccc',
+        }}
       />
 
       {filteredOrders.length === 0 && <p>No orders found.</p>}
 
       {filteredOrders.map(order => (
-        <div key={order.id} style={orderCard}>
+        <div
+          key={order.id}
+          style={{
+            border: '1px solid #ddd',
+            borderRadius: 8,
+            marginBottom: 20,
+            background: '#fff',
+          }}
+        >
           {/* HEADER */}
-          <div style={headerGrid}>
+          <div
+            style={{
+              padding: 12,
+              background: '#f3f4f6',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              fontSize: 13,
+            }}
+          >
             <Header label="ORDER PLACED">
               {new Date(order.created_at).toLocaleDateString()}
             </Header>
@@ -114,23 +129,29 @@ export default function OrdersPage() {
 
           {/* ITEMS */}
           {order.order_items.map(item => {
-            const imageUrl =
-              item.product?.[0]?.product_images?.[0]?.url
+            const imageUrl = item.product?.[0]?.product_images?.[0]?.url
 
             return (
-              <div key={item.id} style={itemRow}>
-                {/* ✅ IMAGE (SAFE HTML IMG) */}
+              <div
+                key={item.id}
+                style={{
+                  display: 'flex',
+                  gap: 16,
+                  padding: 16,
+                  borderTop: '1px solid #eee',
+                }}
+              >
+                {/* IMAGE */}
                 <div style={{ width: 90, height: 90 }}>
                   {imageUrl ? (
                     <img
                       src={imageUrl}
                       alt={item.name}
-                      width={90}
-                      height={90}
                       style={{
+                        width: 90,
+                        height: 90,
                         objectFit: 'cover',
                         borderRadius: 6,
-                        display: 'block',
                       }}
                     />
                   ) : (
@@ -148,31 +169,44 @@ export default function OrdersPage() {
                 {/* DETAILS */}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{item.name}</div>
-
                   <div style={{ marginTop: 6 }}>
                     ₹{item.price} × {item.qty}
                   </div>
-
                   <strong>₹{item.price * item.qty}</strong>
 
-                  <div style={actionsRow}>
+                  <div style={{ marginTop: 10, display: 'flex', gap: 16 }}>
                     <Link href={`/orders/${order.id}`}>View order</Link>
 
                     <button
-                      onClick={() => downloadInvoice(order.id)}
-                      style={linkBtn}
+                      onClick={() => window.open(`/api/orders/${order.id}/invoice`)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#2563eb',
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
                     >
                       Download invoice
                     </button>
 
                     <button
-                      onClick={() => reorderItem(item)}
-                      style={linkBtn}
+                      onClick={() => {
+                        const cart = JSON.parse(localStorage.getItem('cart') || '[]')
+                        cart.push({ productId: item.product_id, qty: item.qty })
+                        localStorage.setItem('cart', JSON.stringify(cart))
+                        window.location.href = '/checkout'
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#2563eb',
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
                     >
                       Re‑order
                     </button>
-
-                    <span style={{ color: '#6b7280' }}>Track order</span>
                   </div>
                 </div>
               </div>
@@ -184,83 +218,13 @@ export default function OrdersPage() {
   )
 }
 
-/* ========== HELPERS ========== */
+/* ================= UI ================= */
 
-function Header({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
+function Header({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={headerLabel}>{label}</div>
+      <div style={{ fontSize: 11, color: '#6b7280' }}>{label}</div>
       <div>{children}</div>
     </div>
   )
 }
-
-function reorderItem(item: OrderItem) {
-  const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-  cart.push({ productId: item.product_id, qty: item.qty })
-  localStorage.setItem('cart', JSON.stringify(cart))
-  window.location.href = '/checkout'
-}
-
-function downloadInvoice(orderId: string) {
-  window.open(`/api/orders/${orderId}/invoice`, '_blank')
-}
-
-/* ========== STYLES ========== */
-
-const searchBox: React.CSSProperties = {
-  width: '100%',
-  padding: 10,
-  marginBottom: 20,
-  borderRadius: 6,
-  border: '1px solid #ccc',
-}
-
-const orderCard: React.CSSProperties = {
-  border: '1px solid #ddd',
-  borderRadius: 8,
-  marginBottom: 20,
-  background: '#fff',
-}
-
-const headerGrid: React.CSSProperties = {
-  padding: 12,
-  background: '#f3f4f6',
-  display: 'grid',
-  gridTemplateColumns: 'repeat(4, 1fr)',
-  gap: 12,
-  fontSize: 13,
-}
-
-const itemRow: React.CSSProperties = {
-  display: 'flex',
-  gap: 16,
-  padding: 16,
-  borderTop: '1px solid #eee',
-}
-
-const actionsRow: React.CSSProperties = {
-  marginTop: 10,
-  display: 'flex',
-  gap: 16,
-}
-
-const headerLabel: React.CSSProperties = {
-  fontSize: 11,
-  color: '#6b7280',
-}
-
-const linkBtn: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  padding: 0,
-  color: '#2563eb',
-  cursor: 'pointer',
-}
-``
