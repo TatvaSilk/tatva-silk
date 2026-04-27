@@ -43,31 +43,47 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    supabase
-      .from('orders')
-      .select(`
-        id,
-        order_no,
-        created_at,
-        grand_total,
-        status,
-        order_items (
-          id,
-          name,
-          price,
-          qty,
-          product_id,
-          product_images:product_images (
-            url,
-            sort_order
-          )
-        )
-      `)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setOrders(data ?? [])
+    async function loadOrders() {
+      // ✅ 1. Get logged-in user
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        setOrders([])
         setLoading(false)
-      })
+        return
+      }
+
+      // ✅ 2. Fetch ONLY this user's orders + product_images
+      const { data } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          order_no,
+          created_at,
+          grand_total,
+          status,
+          order_items (
+            id,
+            name,
+            price,
+            qty,
+            product_id,
+            product_images:product_images (
+              url,
+              sort_order
+            )
+          )
+        `)
+        .eq('customer_id', user.id)   -- ⚠️ CHANGE if column name is different
+        .order('created_at', { ascending: false })
+
+      setOrders(data ?? [])
+      setLoading(false)
+    }
+
+    loadOrders()
   }, [])
 
   const filteredOrders = useMemo(() => {
@@ -137,11 +153,7 @@ export default function OrdersPage() {
                 {/* DETAILS */}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600 }}>{item.name}</div>
-
-                  <div style={{ marginTop: 6 }}>
-                    ₹{item.price} × {item.qty}
-                  </div>
-
+                  <div>₹{item.price} × {item.qty}</div>
                   <strong>₹{item.price * item.qty}</strong>
 
                   <div style={actionsRow}>
@@ -177,13 +189,7 @@ export default function OrdersPage() {
 
 /* ================= HELPERS ================= */
 
-function Header({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
+function Header({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <div style={headerLabel}>{label}</div>
@@ -194,10 +200,7 @@ function Header({
 
 function reorderItem(item: OrderItem) {
   const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-  cart.push({
-    productId: item.product_id,
-    qty: item.qty,
-  })
+  cart.push({ productId: item.product_id, qty: item.qty })
   localStorage.setItem('cart', JSON.stringify(cart))
   window.location.href = '/checkout'
 }
