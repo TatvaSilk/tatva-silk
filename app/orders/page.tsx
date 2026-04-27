@@ -10,30 +10,40 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+/* ================= TYPES ================= */
+
+type ProductImage = {
+  url: string
+}
+
+type Product = {
+  product_images: ProductImage[]
+}
+
 type OrderItem = {
   id: string
   name: string
   price: number
   qty: number
   product_id: string
-  product: {
-    product_images: { url: string }[]
-  } | null
+  product: Product | null
 }
 
 type Order = {
   id: string
   order_no: string
-  status: string
   created_at: string
   grand_total: number
+  status: string
   order_items: OrderItem[]
 }
 
-export default function MyOrdersPage() {
+/* ================= PAGE ================= */
+
+export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
-  const [query, setQuery] = useState('')
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     supabase
@@ -41,9 +51,9 @@ export default function MyOrdersPage() {
       .select(`
         id,
         order_no,
-        status,
         created_at,
         grand_total,
+        status,
         order_items (
           id,
           name,
@@ -63,110 +73,69 @@ export default function MyOrdersPage() {
   }, [])
 
   const filteredOrders = useMemo(() => {
-    if (!query) return orders
+    if (!search) return orders
+    const q = search.toLowerCase()
     return orders.filter(o =>
-      o.order_no.toLowerCase().includes(query.toLowerCase()) ||
+      o.order_no.toLowerCase().includes(q) ||
       o.order_items.some(i =>
-        i.name.toLowerCase().includes(query.toLowerCase())
+        i.name.toLowerCase().includes(q)
       )
     )
-  }, [orders, query])
+  }, [orders, search])
 
   if (loading) {
-    return <div style={{ padding: 20 }}>Loading your orders…</div>
+    return <div style={{ padding: 20 }}>Loading orders…</div>
   }
 
   return (
-    <main style={{ maxWidth: 1050, margin: '0 auto', padding: 20 }}>
-      <h1 style={{ fontSize: 26, marginBottom: 12 }}>Your Orders</h1>
+    <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
+      <h1 style={{ fontSize: 26, marginBottom: 12 }}>
+        Your Orders
+      </h1>
 
       {/* SEARCH */}
       <input
         placeholder="Search by order number or product name"
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        style={{
-          width: '100%',
-          padding: 10,
-          marginBottom: 20,
-          borderRadius: 6,
-          border: '1px solid #ccc',
-        }}
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        style={searchBox}
       />
 
-      {filteredOrders.length === 0 && <p>No orders found.</p>}
+      {filteredOrders.length === 0 && (
+        <p>No orders found.</p>
+      )}
 
       {filteredOrders.map(order => (
-        <div
-          key={order.id}
-          style={{
-            border: '1px solid #ddd',
-            borderRadius: 8,
-            marginBottom: 20,
-            background: '#fff',
-          }}
-        >
+        <div key={order.id} style={orderCard}>
           {/* HEADER */}
-          <div
-            style={{
-              padding: 12,
-              background: '#f3f4f6',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 12,
-              fontSize: 13,
-            }}
-          >
-            <HeaderCell label="ORDER PLACED">
+          <div style={headerGrid}>
+            <Header label="ORDER PLACED">
               {new Date(order.created_at).toLocaleDateString()}
-            </HeaderCell>
-
-            <HeaderCell label="TOTAL">
-              ₹{order.grand_total}
-            </HeaderCell>
-
-            <HeaderCell label="ORDER #">
-              {order.order_no}
-            </HeaderCell>
-
-            <HeaderCell label="STATUS">
-              {order.status}
-            </HeaderCell>
+            </Header>
+            <Header label="TOTAL">₹{order.grand_total}</Header>
+            <Header label="ORDER #">{order.order_no}</Header>
+            <Header label="STATUS">{order.status}</Header>
           </div>
 
           {/* ITEMS */}
           {order.order_items.map(item => {
-            const image =
+            const img =
               item.product?.product_images?.[0]?.url
 
             return (
-              <div
-                key={item.id}
-                style={{
-                  display: 'flex',
-                  gap: 16,
-                  padding: 16,
-                  borderTop: '1px solid #eee',
-                }}
-              >
+              <div key={item.id} style={itemRow}>
                 {/* IMAGE */}
                 <div style={{ width: 90, height: 90 }}>
-                  {image ? (
+                  {img ? (
                     <Image
-                      src={image}
+                      src={img}
                       alt={item.name}
                       width={90}
                       height={90}
-                      style={{ objectFit: 'cover', borderRadius: 6 }}
+                      style={{ objectFit: 'contain' }}
                     />
                   ) : (
-                    <div
-                      style={{
-                        width: 90,
-                        height: 90,
-                        background: '#f1f5f9',
-                      }}
-                    />
+                    <div style={imgPlaceholder} />
                   )}
                 </div>
 
@@ -180,15 +149,12 @@ export default function MyOrdersPage() {
                     ₹{item.price} × {item.qty}
                   </div>
 
-                  <div style={{ marginTop: 6 }}>
-                    <strong>₹{item.price * item.qty}</strong>
-                  </div>
+                  <strong>
+                    ₹{item.price * item.qty}
+                  </strong>
 
-                  {/* ACTIONS */}
-                  <div style={{ marginTop: 10, display: 'flex', gap: 16 }}>
-                    {`/orders/${order.id}`}
-                      View order
-                    </Link>
+                  <div style={actionsRow}>
+                    /orders/{order.id}View order</Link>
 
                     <button
                       onClick={() => downloadInvoice(order.id)}
@@ -198,7 +164,7 @@ export default function MyOrdersPage() {
                     </button>
 
                     <button
-                      onClick={() => reorder(item)}
+                      onClick={() => reorderItem(item)}
                       style={linkBtn}
                     >
                       🔁 Re‑order
@@ -218,9 +184,9 @@ export default function MyOrdersPage() {
   )
 }
 
-/* ========== HELPERS ========== */
+/* ================= HELPERS ================= */
 
-function HeaderCell({
+function Header({
   label,
   children,
 }: {
@@ -229,12 +195,65 @@ function HeaderCell({
 }) {
   return (
     <div>
-      <div style={{ fontSize: 11, color: '#6b7280' }}>
-        {label}
-      </div>
+      <div style={headerLabel}>{label}</div>
       <div>{children}</div>
     </div>
   )
+}
+
+function reorderItem(item: OrderItem) {
+  const cart = JSON.parse(localStorage.getItem('cart') || '[]')
+  cart.push({ productId: item.product_id, qty: item.qty })
+  localStorage.setItem('cart', JSON.stringify(cart))
+  window.location.href = '/checkout'
+}
+
+function downloadInvoice(orderId: string) {
+  window.open(`/api/orders/${orderId}/invoice`, '_blank')
+}
+
+/* ================= STYLES ================= */
+
+const searchBox: React.CSSProperties = {
+  width: '100%',
+  padding: 10,
+  marginBottom: 20,
+  borderRadius: 6,
+  border: '1px solid #ccc',
+}
+
+const orderCard: React.CSSProperties = {
+  border: '1px solid #ddd',
+  borderRadius: 8,
+  marginBottom: 20,
+  background: '#fff',
+}
+
+const headerGrid: React.CSSProperties = {
+  padding: 12,
+  background: '#f3f4f6',
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, 1fr)',
+  gap: 12,
+  fontSize: 13,
+}
+
+const itemRow: React.CSSProperties = {
+  display: 'flex',
+  gap: 16,
+  padding: 16,
+  borderTop: '1px solid #eee',
+}
+
+const actionsRow: React.CSSProperties = {
+  marginTop: 10,
+  display: 'flex',
+  gap: 16,
+}
+
+const headerLabel: React.CSSProperties = {
+  fontSize: 11,
+  color: '#6b7280',
 }
 
 const linkBtn: React.CSSProperties = {
@@ -245,20 +264,8 @@ const linkBtn: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-/* ========== ACTIONS ========== */
-
-// ✅ INVOICE (stub for PDF API)
-function downloadInvoice(orderId: string) {
-  window.open(`/api/orders/${orderId}/invoice`, '_blank')
-}
-
-// ✅ RE‑ORDER (adds product back to cart)
-function reorder(item: OrderItem) {
-  const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-  cart.push({
-    productId: item.product_id,
-    qty: item.qty,
-  })
-  localStorage.setItem('cart', JSON.stringify(cart))
-  window.location.href = '/checkout'
+const imgPlaceholder: React.CSSProperties = {
+  width: 90,
+  height: 90,
+  background: '#e5e7eb',
 }
