@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import AdminBannerPreview from '@/components/AdminBannerPreview'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,168 +11,134 @@ const supabase = createClient(
 )
 
 export default function EditBannerPage() {
+  const { id } = useParams()
   const router = useRouter()
-  const params = useParams()
-  const bannerId = params.id as string
 
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [preview, setPreview] = useState<'desktop' | 'mobile'>('desktop')
+  const [form, setForm] = useState<any>({
+    title: '',
+    text: '',
+    gradient_color: '#0b1220',
+    theme: 'dark',
+    img: '',
+    mobile_img: '',
+  })
 
-  const [title, setTitle] = useState('')
-  const [text, setText] = useState('')
-  const [ctaLabel, setCtaLabel] = useState('')
-  const [ctaHref, setCtaHref] = useState('')
-  const [sortOrder, setSortOrder] = useState(1)
-  const [isActive, setIsActive] = useState(true)
-  const [imageUrl, setImageUrl] = useState('')
   const [newImage, setNewImage] = useState<File | null>(null)
+  const [saving, setSaving] = useState(false)
 
-  // ✅ Load existing banner
   useEffect(() => {
     supabase
       .from('home_banners')
       .select('*')
-      .eq('id', bannerId)
+      .eq('id', id)
       .single()
-      .then(({ data, error }) => {
-        if (error) {
-          setError(error.message)
-        } else if (data) {
-          setTitle(data.title)
-          setText(data.text ?? '')
-          setCtaLabel(data.cta_label ?? '')
-          setCtaHref(data.cta_href ?? '')
-          setSortOrder(data.sort_order)
-          setIsActive(data.is_active)
-          setImageUrl(data.img)
-        }
-        setLoading(false)
-      })
-  }, [bannerId])
+      .then(({ data }) => data && setForm(data))
+  }, [id])
 
-  async function saveBanner() {
+  async function upload(file: File) {
+    const name = `${Date.now()}-${file.name}`
+    await supabase.storage.from('banners').upload(name, file)
+    return supabase.storage.from('banners').getPublicUrl(name).data.publicUrl
+  }
+
+  async function save() {
     setSaving(true)
-    setError(null)
 
-    let finalImage = imageUrl
+    let imgUrl = form.img
+    if (newImage) imgUrl = await upload(newImage)
 
-    // ✅ Upload new image if selected
-    if (newImage) {
-      const fileName = `banner-${Date.now()}-${newImage.name}`
-
-      const { error: uploadError } = await supabase.storage
-        .from('banners')
-        .upload(fileName, newImage)
-
-      if (uploadError) {
-        setSaving(false)
-        setError(uploadError.message)
-        return
-      }
-
-      const { data } = supabase.storage
-        .from('banners')
-        .getPublicUrl(fileName)
-
-      finalImage = data.publicUrl
-    }
-
-    // ✅ Call server API
-    const res = await fetch('/api/admin/banners/update', {
+    await fetch('/api/admin/banners/update', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: bannerId,
-        title,
-        text,
-        cta_label: ctaLabel,
-        cta_href: ctaHref,
-        img: finalImage,
-        sort_order: sortOrder,
-        is_active: isActive,
-      }),
+      body: JSON.stringify({ ...form, id, img: imgUrl }),
     })
-
-    const result = await res.json()
-    setSaving(false)
-
-    if (!res.ok) {
-      setError(result.error || 'Update failed')
-      return
-    }
 
     router.push('/admin/banners')
   }
 
-  if (loading) return <p>Loading banner…</p>
-
   return (
-    <main style={{ maxWidth: 640 }}>
-      <h1>Edit Banner</h1>
+    <main style={card}>
+      <h2>Edit Banner</h2>
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      {/* Toggle */}
+      <div style={{ marginBottom: 12 }}>
+        <button onClick={() => setPreview('desktop')}>Desktop</button>
+        <button onClick={() => setPreview('mobile')}>Mobile</button>
+      </div>
 
       <input
-        value={title}
-        onChange={e => setTitle(e.target.value)}
+        style={input}
+        value={form.title}
+        onChange={e => setForm({ ...form, title: e.target.value })}
         placeholder="Title"
-        style={{ width: '100%', marginBottom: 10 }}
       />
 
       <textarea
-        value={text}
-        onChange={e => setText(e.target.value)}
+        style={input}
+        value={form.text}
+        onChange={e => setForm({ ...form, text: e.target.value })}
         placeholder="Description"
-        style={{ width: '100%', marginBottom: 10 }}
       />
 
-      <p>Current Image</p>
-      <img src={imageUrl} style={{ maxWidth: '100%', marginBottom: 10 }} />
+      <input type="file" onChange={e => setNewImage(e.target.files?.[0] ?? null)} />
 
+      <label>Gradient</label>
       <input
-        type="file"
-        accept="image/*"
-        onChange={e => setNewImage(e.target.files?.[0] ?? null)}
-        style={{ marginBottom: 10 }}
+        type="color"
+        value={form.gradient_color}
+        onChange={e =>
+          setForm({ ...form, gradient_color: e.target.value })
+        }
       />
 
-      <input
-        value={ctaLabel}
-        onChange={e => setCtaLabel(e.target.value)}
-        placeholder="Button Label"
-        style={{ width: '100%', marginBottom: 10 }}
+      <select
+        value={form.theme}
+        onChange={e => setForm({ ...form, theme: e.target.value })}
+      >
+        <option value="dark">Dark</option>
+        <option value="light">Light</option>
+      </select>
+
+      {/* LIVE PREVIEW */}
+      <AdminBannerPreview
+        title={form.title}
+        text={form.text}
+        image={preview === 'mobile' && form.mobile_img ? form.mobile_img : form.img}
+        gradient={form.gradient_color}
+        theme={form.theme}
+        preview={preview}
       />
 
-      <input
-        value={ctaHref}
-        onChange={e => setCtaHref(e.target.value)}
-        placeholder="Button Link"
-        style={{ width: '100%', marginBottom: 10 }}
-      />
-
-      <input
-        type="number"
-        value={sortOrder}
-        onChange={e => setSortOrder(Number(e.target.value))}
-        placeholder="Sort Order"
-        style={{ width: '100%', marginBottom: 10 }}
-      />
-
-      <label>
-        <input
-          type="checkbox"
-          checked={isActive}
-          onChange={e => setIsActive(e.target.checked)}
-        />{' '}
-        Active
-      </label>
-
-      <br /><br />
-
-      <button onClick={saveBanner} disabled={saving}>
-        {saving ? 'Saving…' : 'Save Changes'}
+      <button onClick={save} disabled={saving} style={saveBtn}>
+        Save Changes
       </button>
     </main>
   )
 }
+
+const card = {
+  maxWidth: 760,
+  margin: '0 auto',
+  background: '#020617',
+  padding: 24,
+  borderRadius: 14,
+} as React.CSSProperties
+
+const input = {
+  width: '100%',
+  marginBottom: 12,
+  padding: 10,
+  background: '#020617',
+  color: '#fff',
+  borderRadius: 8,
+  border: '1px solid #334155',
+} as React.CSSProperties
+
+const saveBtn = {
+  marginTop: 16,
+  padding: '12px 20px',
+  background: '#f59e0b',
+  fontWeight: 700,
+  borderRadius: 8,
+} as React.CSSProperties
+``
