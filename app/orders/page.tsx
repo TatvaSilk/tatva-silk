@@ -41,29 +41,30 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [message, setMessage] = useState('')
 
   useEffect(() => {
     async function loadOrders() {
-      // 1. Get logged in auth user
+      // 1. Logged-in auth user
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
       if (!user) {
-        setOrders([])
+        setMessage('Please login to view your orders.')
         setLoading(false)
         return
       }
 
-      // 2. Get customer profile mapped to auth user
+      // 2. Find customer profile using EMAIL (this matches your data)
       const { data: customer } = await supabase
         .from('customer_profiles')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('email', user.email)
         .single()
 
       if (!customer) {
-        setOrders([])
+        setMessage('Customer profile not found.')
         setLoading(false)
         return
       }
@@ -102,10 +103,10 @@ export default function OrdersPage() {
   const filteredOrders = useMemo(() => {
     if (!search) return orders
     const q = search.toLowerCase()
-    return orders.filter(o =>
-      o.order_no.toLowerCase().includes(q) ||
-      o.order_items.some(i =>
-        i.name.toLowerCase().includes(q)
+    return orders.filter(order =>
+      order.order_no.toLowerCase().includes(q) ||
+      order.order_items.some(item =>
+        item.name.toLowerCase().includes(q)
       )
     )
   }, [orders, search])
@@ -125,11 +126,12 @@ export default function OrdersPage() {
         style={searchBox}
       />
 
-      {filteredOrders.length === 0 && <p>No orders found.</p>}
+      {orders.length === 0 && (
+        <p>{message || 'No orders found.'}</p>
+      )}
 
       {filteredOrders.map(order => (
         <div key={order.id} style={orderCard}>
-          {/* HEADER */}
           <div style={headerGrid}>
             <Header label="ORDER PLACED">
               {new Date(order.created_at).toLocaleDateString()}
@@ -139,11 +141,10 @@ export default function OrdersPage() {
             <Header label="STATUS">{order.status}</Header>
           </div>
 
-          {/* ITEMS */}
           {order.order_items.map(item => {
             const imageUrl =
               item.product_images
-                ?.sort((a, b) => a.sort_order - b.sort_order)[0]
+                .sort((a, b) => a.sort_order - b.sort_order)[0]
                 ?.url
 
             return (
@@ -167,21 +168,9 @@ export default function OrdersPage() {
                   <strong>₹{item.price * item.qty}</strong>
 
                   <div style={actionsRow}>
-                    <Link href={`/orders/${order.id}`}>View Order</Link>
-
-                    <button
-                      onClick={() => downloadInvoice(order.id)}
-                      style={linkBtn}
-                    >
-                      Download Invoice
-                    </button>
-
-                    <button
-                      onClick={() => reorderItem(item)}
-                      style={linkBtn}
-                    >
-                      Re‑order
-                    </button>
+                    <Link href={`/orders/${order.id}`}>View order</Link>
+                    <button style={linkBtn}>Download invoice</button>
+                    <button style={linkBtn}>Re‑order</button>
                   </div>
                 </div>
               </div>
@@ -193,7 +182,7 @@ export default function OrdersPage() {
   )
 }
 
-/* ================= HELPERS ================= */
+/* ================= UI ================= */
 
 function Header({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -204,68 +193,52 @@ function Header({ label, children }: { label: string; children: React.ReactNode 
   )
 }
 
-function reorderItem(item: OrderItem) {
-  const cart = JSON.parse(localStorage.getItem('cart') || '[]')
-  cart.push({ productId: item.product_id, qty: item.qty })
-  localStorage.setItem('cart', JSON.stringify(cart))
-  window.location.href = '/checkout'
-}
-
-function downloadInvoice(orderId: string) {
-  window.open(`/api/orders/${orderId}/invoice`, '_blank')
-}
-
-/* ================= STYLES ================= */
-
-const searchBox: React.CSSProperties = {
+const searchBox = {
   width: '100%',
   padding: 10,
   marginBottom: 20,
-  borderRadius: 6,
-  border: '1px solid #ccc',
 }
 
-const orderCard: React.CSSProperties = {
+const orderCard = {
   border: '1px solid #ddd',
   borderRadius: 8,
   marginBottom: 20,
   background: '#fff',
 }
 
-const headerGrid: React.CSSProperties = {
+const headerGrid = {
   padding: 12,
   background: '#f3f4f6',
   display: 'grid',
   gridTemplateColumns: 'repeat(4, 1fr)',
-  fontSize: 13,
 }
 
-const itemRow: React.CSSProperties = {
+const itemRow = {
   display: 'flex',
   gap: 16,
   padding: 16,
   borderTop: '1px solid #eee',
 }
 
-const actionsRow: React.CSSProperties = {
-  marginTop: 10,
+const actionsRow = {
   display: 'flex',
   gap: 16,
+  marginTop: 10,
 }
 
-const headerLabel: React.CSSProperties = {
+const headerLabel = {
   fontSize: 11,
   color: '#6b7280',
 }
 
-const linkBtn: React.CSSProperties = {
+const linkBtn = {
   background: 'none',
   border: 'none',
   color: '#2563eb',
   cursor: 'pointer',
 }
 
-const imgPlaceholder: React.CSSProperties = {
+const imgPlaceholder = {
   width: 90,
   height: 90,
   background: '#e5e7eb',
