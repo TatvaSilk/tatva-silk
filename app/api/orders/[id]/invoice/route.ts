@@ -17,8 +17,8 @@ export async function GET(
 ) {
   const orderRef = params.id
 
-  /* 1️⃣ Load order */
-  const { data: order, error } = await supabase
+  /* 1️⃣ Try lookup by ID */
+  let { data: order, error } = await supabase
     .from('orders')
     .select(`
       id,
@@ -33,14 +33,38 @@ export async function GET(
         qty
       )
     `)
-    .or(`id.eq.${orderRef},order_no.eq.${orderRef}`)
+    .eq('id', orderRef)
     .single()
+
+  /* 2️⃣ If not found, try order_no */
+  if (!order) {
+    const res = await supabase
+      .from('orders')
+      .select(`
+        id,
+        order_no,
+        created_at,
+        grand_total,
+        status,
+        customer_id,
+        order_items (
+          name,
+          price,
+          qty
+        )
+      `)
+      .eq('order_no', orderRef)
+      .single()
+
+    order = res.data
+    error = res.error
+  }
 
   if (error || !order) {
     return new NextResponse('Order not found', { status: 404 })
   }
 
-  /* 2️⃣ Shipping address */
+  /* 3️⃣ Load shipping address */
   const { data: customer } = await supabase
     .from('customer_profiles')
     .select(`
@@ -54,9 +78,9 @@ export async function GET(
     .eq('id', order.customer_id)
     .single()
 
-  /* 3️⃣ Calculations */
+  /* 4️⃣ Calculations */
   const subtotal = order.order_items.reduce(
-    (sum: number, i: any) => sum + i.price * i.qty,
+    (s: number, i: any) => s + i.price * i.qty,
     0
   )
 
@@ -66,34 +90,34 @@ export async function GET(
 
   const invoiceNo = `TS-INV-${new Date(order.created_at).getFullYear()}-${order.id.slice(0, 6).toUpperCase()}`
 
-  /* 4️⃣ Rows */
+  /* 5️⃣ Items */
   const rows = order.order_items
     .map(
-      (item: any) => `
+      (i: any) => `
         <tr>
-          <td>${item.name}</td>
-          <td>${item.qty}</td>
-          <td>₹${item.price}</td>
-          <td>₹${item.price * item.qty}</td>
+          <td>${i.name}</td>
+          <td>${i.qty}</td>
+          <td>₹${i.price}</td>
+          <td>₹${i.price * i.qty}</td>
         </tr>
       `
     )
     .join('')
 
-  /* 5️⃣ HTML */
+  /* 6️⃣ HTML Invoice */
   const html = `
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>Invoice ${invoiceNo}</title>
-  <style>
-    body { font-family: Arial; padding: 40px }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px }
-    th, td { border: 1px solid #ccc; padding: 10px }
-    th { background: #f4f4f4 }
-    .right { text-align: right }
-  </style>
+<meta charset="utf-8"/>
+<title>Invoice ${invoiceNo}</title>
+<style>
+body { font-family: Arial; padding: 40px }
+table { width: 100%; border-collapse: collapse; margin-top: 20px }
+th, td { border: 1px solid #ccc; padding: 10px }
+th { background: #f4f4f4 }
+.right { text-align: right }
+</style>
 </head>
 <body>
 
@@ -101,7 +125,7 @@ export async function GET(
 
 <p>
 <strong>Invoice:</strong> ${invoiceNo}<br/>
-<strong>Order:</strong> ${order.order_no}<br/>
+<strong>Order No:</strong> ${order.order_no}<br/>
 <strong>Date:</strong> ${new Date(order.created_at).toLocaleDateString()}
 </p>
 
@@ -115,7 +139,12 @@ Phone: ${customer?.phone || ''}
 
 <table>
 <thead>
-<tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+<tr>
+  <th>Product</th>
+  <th>Qty</th>
+  <th>Price</th>
+  <th>Total</th>
+</tr>
 </thead>
 <tbody>
 ${rows}
@@ -123,12 +152,12 @@ ${rows}
 </table>
 
 <p class="right">Subtotal: ₹${subtotal.toFixed(2)}</p>
-<p class="right">CGST 2.5%: ₹${cgst.toFixed(2)}</p>
-<p class="right">SGST 2.5%: ₹${sgst.toFixed(2)}</p>
+<p class="right">CGST (2.5%): ₹${cgst.toFixed(2)}</p>
+<p class="right">SGST (2.5%): ₹${sgst.toFixed(2)}</p>
 <p class="right"><strong>Grand Total: ₹${order.grand_total}</strong></p>
 
 <script>
-  window.onload = () => window.print()
+  window.onload = () => window.print();
 </script>
 
 </body>
