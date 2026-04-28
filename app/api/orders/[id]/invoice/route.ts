@@ -18,7 +18,7 @@ const GST_RATE = 0.05
 const COMPANY = {
   nameEn: 'Tatva Silk & Shubh Vivah',
   nameGu: 'તત્વા સિલ્ક અને શુભ વિવાહ',
-  gstin: '24ABCDE1234F1Z5', // replace when final GSTIN available
+  gstin: '24ABCDE1234F1Z5', // replace when final
   phone: '9638683720',
   email: 'nimeshpatel001@yahoo.com',
   upiId: '9638683720@upi',
@@ -45,7 +45,7 @@ export async function GET(
 ) {
   const orderId = params.id
 
-  /* ----- ORDER ----- */
+  /* ---------- ORDER ---------- */
   const { data: order } = await supabase
     .from('orders')
     .select(`
@@ -54,7 +54,9 @@ export async function GET(
       invoice_no,
       created_at,
       grand_total,
-      customer_id,
+      shipping_name,
+      shipping_phone,
+      shipping_address,
       order_items (
         name,
         price,
@@ -68,7 +70,7 @@ export async function GET(
     return new NextResponse('Order not found', { status: 404 })
   }
 
-  /* ----- INVOICE NUMBER (ONCE) ----- */
+  /* ---------- INVOICE NUMBER (ONCE) ---------- */
   let invoiceNo = order.invoice_no
   if (!invoiceNo) {
     invoiceNo = `TS-INV-${new Date().getFullYear()}-${order.id
@@ -84,24 +86,14 @@ export async function GET(
       .eq('id', order.id)
   }
 
-  /* ----- CUSTOMER ----- */
-  const { data: customer } = await supabase
-    .from('customer_profiles')
-    .select(
-      'full_name, address_line1, city, state, pincode, phone'
-    )
-    .eq('id', order.customer_id)
-    .single()
-
-  /* ----- TOTALS ----- */
+  /* ---------- TOTALS ---------- */
   const subtotal = order.order_items.reduce(
     (sum: number, i: any) => sum + i.price * i.qty,
     0
   )
-
   const gst = subtotal * GST_RATE
 
-  /* ----- UPI QR ----- */
+  /* ---------- UPI QR ---------- */
   const upiUrl = `upi://pay?pa=${COMPANY.upiId}&pn=${encodeURIComponent(
     COMPANY.nameEn
   )}&am=${order.grand_total}&cu=INR`
@@ -110,7 +102,7 @@ export async function GET(
     upiUrl
   )}`
 
-  /* ----- ITEMS ----- */
+  /* ---------- ITEMS ---------- */
   const rows = order.order_items
     .map(
       i => `
@@ -151,7 +143,7 @@ th { background:#f4f4f4 }
 
 <!-- HEADER -->
 <div class="header">
-  <img src="${COMPANY.logoUrl}" class="logo" />
+  <img src="${COMPANY.logoUrl}" class="logo"/>
   <div>
     <strong>TAX INVOICE</strong><br/>
     Invoice No: ${invoiceNo}<br/>
@@ -170,13 +162,12 @@ th { background:#f4f4f4 }
   Phone: ${COMPANY.phone} | Email: ${COMPANY.email}
 </div>
 
-<!-- BUYER -->
+<!-- ✅ SHIPPING (FIXED) -->
 <div class="box">
   <strong>Ship To / મોકલવાનું સરનામું</strong><br/>
-  ${customer?.full_name || ''}<br/>
-  ${customer?.address_line1 || ''}<br/>
-  ${customer?.city || ''}, ${customer?.state || ''} - ${customer?.pincode || ''}<br/>
-  Phone: ${customer?.phone || ''}
+  ${order.shipping_name || '-'}<br/>
+  ${order.shipping_address || '-'}<br/>
+  Phone: ${order.shipping_phone || '-'}
 </div>
 
 <!-- ITEMS -->
@@ -203,7 +194,7 @@ ${rows}
 <!-- UPI -->
 <div class="box">
   <strong>Pay via UPI / યુપીઆઈ દ્વારા ચુકવણી</strong><br/>
-  <img src="${qrUrl}" alt="UPI QR"/><br/>
+  <img src="${qrUrl}" /><br/>
   ${COMPANY.upiId}
 </div>
 
@@ -217,7 +208,7 @@ ${rows}
 </div>
 
 <div class="footer">
-  This is a computer-generated invoice / આ કમ્પ્યુટર જનરેટેડ બિલ છે
+  This is a computer‑generated invoice / આ કમ્પ્યુટર જનરેટેડ બિલ છે
 </div>
 
 <script>
