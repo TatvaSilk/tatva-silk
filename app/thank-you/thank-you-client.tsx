@@ -14,6 +14,7 @@ export default function ThankYouClient() {
     ranRef.current = true
 
     const run = async () => {
+      // 🔹 Fetch order via your secure API
       const res = await fetch('/api/orders/by-order-no', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -28,6 +29,7 @@ export default function ThankYouClient() {
       }
 
       const phone = data.shipping_phone.replace(/\D/g, '')
+
       const message = encodeURIComponent(
 `Thank you for shopping with Tatva Silk 🙏
 
@@ -38,7 +40,20 @@ Download your invoice:
 https://tatva-silk.vercel.app/api/orders/${data.id}/invoice`
       )
 
-      window.location.href = `https://wa.me/91${phone}?text=${message}`
+      // ✅ Create hidden link that opens NEW TAB
+      const link = document.createElement('a')
+      link.href = `https://wa.me/91${phone}?text=${message}`
+      link.target = '_blank'
+      link.rel = 'noopener'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      // ✅ NOW we are still on thank-you page
+      // ✅ Redirect safely after 30 seconds
+      setTimeout(() => {
+        window.location.href = '/'
+      }, 30000)
     }
 
     run()
@@ -58,7 +73,8 @@ https://tatva-silk.vercel.app/api/orders/${data.id}/invoice`
       <h1>✅ Thank you</h1>
       <p>Your order has been placed successfully.</p>
       <h3>Order No: {orderNo}</h3>
-      <p>Redirecting to WhatsApp…</p>
+      <p>WhatsApp invoice opened in new tab.</p>
+      <p>You will be redirected to home page in 30 seconds.</p>
     </main>
   )
 }
