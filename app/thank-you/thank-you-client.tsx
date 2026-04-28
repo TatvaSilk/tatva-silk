@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
@@ -14,6 +14,8 @@ export default function ThankYouClient() {
   const orderNo = params.get('order')
   const ranRef = useRef(false)
 
+  const [error, setError] = useState<string | null>(null)
+
   useEffect(() => {
     if (!orderNo || ranRef.current) return
     ranRef.current = true
@@ -21,19 +23,17 @@ export default function ThankYouClient() {
     const run = async () => {
       const { data, error } = await supabase
         .from('orders')
-        .select(`
-          id,
-          invoice_no,
-          grand_total,
-          shipping_phone
-        `)
+        .select('id, invoice_no, grand_total, shipping_phone')
         .eq('order_no', orderNo)
         .single()
 
-      if (error || !data) return
+      // ✅ Handle missing order
+      if (error || !data) {
+        setError('Order not found. Please contact support.')
+        return
+      }
 
       const phone = data.shipping_phone.replace(/\D/g, '')
-
       const message = encodeURIComponent(
 `Thank you for shopping with Tatva Silk 🙏
 
@@ -41,17 +41,24 @@ export default function ThankYouClient() {
 💰 Amount: ₹${data.grand_total}
 
 Download your invoice:
-https://tatva-silk.vercel.app/api/orders/${data.id}/invoice
-
-— Tatva Silk & Shubh Vivah`
+https://tatva-silk.vercel.app/api/orders/${data.id}/invoice`
       )
 
-      // ✅ THIS WORKS (no popup block)
+      // ✅ Redirect to WhatsApp (allowed)
       window.location.href = `https://wa.me/91${phone}?text=${message}`
     }
 
     run()
   }, [orderNo])
+
+  if (error) {
+    return (
+      <main style={{ textAlign: 'center', padding: 80 }}>
+        <h1>⚠️ Order Issue</h1>
+        <p>{error}</p>
+      </main>
+    )
+  }
 
   return (
     <main style={{ textAlign: 'center', padding: 80 }}>
