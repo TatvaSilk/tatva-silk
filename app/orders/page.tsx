@@ -35,60 +35,94 @@ export default function OrdersPage() {
   const [images, setImages] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
-      /** 1️⃣ Load orders */
-      const { data: ordersData, error } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          order_no,
-          created_at,
-          grand_total,
-          status,
-          order_items (
-            id,
-            name,
-            price,
-            qty,
-            product_id
-          )
-        `)
-        .order('created_at', { ascending: false })
+      try {
+        /* ✅ 1. Get logged‑in user */
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
 
-      if (error) {
-        console.error(error)
-        return
-      }
-
-      setOrders(ordersData ?? [])
-
-      /** 2️⃣ Collect product IDs */
-      const productIds = [
-        ...new Set(
-          ordersData
-            ?.flatMap(o => o.order_items)
-            .map(i => i.product_id)
-        ),
-      ]
-
-      /** 3️⃣ Fetch images EXACTLY like Home */
-      const { data: imageRows } = await supabase
-        .from('product_images')
-        .select('product_id, url')
-        .in('product_id', productIds)
-
-      /** 4️⃣ Map productId → image URL */
-      const map: Record<string, string> = {}
-      imageRows?.forEach(img => {
-        if (!map[img.product_id]) {
-          map[img.product_id] = img.url
+        if (!user?.email) {
+          setLoading(false)
+          return
         }
-      })
 
-      setImages(map)
-      setLoading(false)
+        /* ✅ 2. Find customer profile */
+        const { data: profile } = await supabase
+          .from('customer_profiles')
+          .select('id')
+          .eq('email', user.email)
+          .maybeSingle()
+
+        if (!profile) {
+          setLoading(false)
+          return
+        }
+
+        /* ✅ 3. Load ONLY this customer's orders */
+        const { data: ordersData, error } = await supabase
+          .from('orders')
+          .select(`
+            id,
+            order_no,
+            created_at,
+            grand_total,
+            status,
+            order_items (
+              id,
+              name,
+              price,
+              qty,
+              product_id
+            )
+          `)
+          .eq('customer_id', profile.id)
+          .order('created_at', { ascending: false })
+
+        if (error) {
+          setError(error.message)
+          setLoading(false)
+          return
+        }
+
+        setOrders(ordersData ?? [])
+
+        /* ✅ 4. Collect product IDs */
+        const productIds = [
+          ...new Set(
+            ordersData
+              ?.flatMap(o => o.order_items)
+              .map(i => i.product_id)
+          ),
+        ]
+
+        if (!productIds.length) {
+          setLoading(false)
+          return
+        }
+
+        /* ✅ 5. Fetch product images */
+        const { data: imageRows } = await supabase
+          .from('product_images')
+          .select('product_id, url')
+          .in('product_id', productIds)
+
+        const map: Record<string, string> = {}
+        imageRows?.forEach(img => {
+          if (!map[img.product_id]) {
+            map[img.product_id] = img.url
+          }
+        })
+
+        setImages(map)
+        setLoading(false)
+      } catch (e: any) {
+        setError(e.message)
+        setLoading(false)
+      }
     }
 
     load()
@@ -107,6 +141,14 @@ export default function OrdersPage() {
 
   if (loading) return <div style={{ padding: 20 }}>Loading…</div>
 
+  if (error) {
+    return (
+      <div style={{ padding: 20, color: 'crimson' }}>
+        {error}
+      </div>
+    )
+  }
+
   return (
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
       <h1>Your Orders</h1>
@@ -121,7 +163,12 @@ export default function OrdersPage() {
       {filteredOrders.map(order => (
         <div key={order.id} style={{ border: '1px solid #ddd', marginBottom: 20 }}>
           {/* HEADER */}
-          <div style={{ padding: 12, background: '#f3f4f6', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
+          <div style={{
+            padding: 12,
+            background: '#f3f4f6',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4,1fr)'
+          }}>
             <div>{new Date(order.created_at).toLocaleDateString()}</div>
             <div>₹{order.grand_total}</div>
             <div>{order.order_no}</div>
@@ -194,3 +241,4 @@ const linkBtn = {
   color: '#2563eb',
   cursor: 'pointer',
 }
+``
