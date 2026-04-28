@@ -8,6 +8,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY! // ✅ bypasses RLS
 )
 
+type CustomerProfile = {
+  id: string
+  email: string | null
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json()
@@ -25,7 +30,7 @@ export async function POST(req: Request) {
     if (
       !customer?.name ||
       !customer?.phone ||
-      !customer?.email ||           // ✅ email REQUIRED
+      !customer?.email ||
       !Array.isArray(items) ||
       items.length === 0 ||
       !address
@@ -38,43 +43,47 @@ export async function POST(req: Request) {
 
     /* ================= CUSTOMER PROFILE ================= */
 
-    // 1️⃣ Try existing profile by PHONE
-    let { data: existingProfile } = await supabase
+    let profile: CustomerProfile | null = null
+
+    // ✅ Try find by phone
+    const { data: existingProfile } = await supabase
       .from('customer_profiles')
       .select('id, email')
       .eq('phone', customer.phone)
       .maybeSingle()
 
-    // ✅ Case A: profile exists
     if (existingProfile) {
-      // 🔴 If email missing, FIX IT permanently
+      profile = existingProfile
+
+      // ✅ backfill email if missing
       if (!existingProfile.email) {
         await supabase
           .from('customer_profiles')
           .update({ email: customer.email })
           .eq('id', existingProfile.id)
+
+        profile = { ...existingProfile, email: customer.email }
       }
-    } 
-    // ✅ Case B: profile does not exist → create
-    else {
+    } else {
+      // ✅ create profile WITH email
       const { data: createdProfile, error } = await supabase
         .from('customer_profiles')
         .insert({
           full_name: customer.name,
           phone: customer.phone,
-          email: customer.email,     // ✅ email stored
+          email: customer.email,
         })
-        .select('id')
+        .select('id, email')
         .single()
 
       if (error || !createdProfile) {
         throw new Error('Failed to create customer profile')
       }
 
-      existingProfile = createdProfile
+      profile = createdProfile
     }
 
-    if (!existingProfile?.id) {
+    if (!profile?.id) {
       throw new Error('Customer profile ID missing')
     }
 
@@ -83,7 +92,7 @@ export async function POST(req: Request) {
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
-        customer_id: existingProfile.id,
+        customer_id: profile.id,
         order_no: `TS-${Date.now()}`,
         items_count: items.length,
         subtotal,
