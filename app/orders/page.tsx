@@ -9,7 +9,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-/* ========== TYPES ========== */
+/* ================= TYPES ================= */
 
 type OrderItem = {
   id: string
@@ -28,7 +28,7 @@ type Order = {
   order_items: OrderItem[]
 }
 
-/* ========== PAGE ========== */
+/* ================= PAGE ================= */
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -40,29 +40,30 @@ export default function OrdersPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        /* ✅ 1. Get logged in user */
+        /* ✅ Logged-in user */
         const {
           data: { user },
         } = await supabase.auth.getUser()
 
-        if (!user?.email) {
+        if (!user) {
           setLoading(false)
           return
         }
 
-        /* ✅ 2. Get customer profile */
+        /* ✅ Find customer profile by PHONE (not email) */
         const { data: profile } = await supabase
           .from('customer_profiles')
           .select('id')
-          .eq('email', user.email)
+          .eq('phone', user.phone ?? '')
           .maybeSingle()
 
         if (!profile) {
+          setError('Customer profile not found')
           setLoading(false)
           return
         }
 
-        /* ✅ 3. Load orders for this customer */
+        /* ✅ Load this customer's orders */
         const { data: ordersData, error } = await supabase
           .from('orders')
           .select(`
@@ -90,7 +91,7 @@ export default function OrdersPage() {
 
         setOrders(ordersData ?? [])
 
-        /* ✅ 4. Collect product IDs */
+        /* ✅ Fetch product images */
         const productIds = [
           ...new Set(
             ordersData
@@ -99,20 +100,19 @@ export default function OrdersPage() {
           ),
         ]
 
-        /* ✅ 5. Load product images */
-        const { data: imageRows } = await supabase
-          .from('product_images')
-          .select('product_id, url')
-          .in('product_id', productIds)
+        if (productIds.length) {
+          const { data: imageRows } = await supabase
+            .from('product_images')
+            .select('product_id, url')
+            .in('product_id', productIds)
 
-        const map: Record<string, string> = {}
-        imageRows?.forEach(img => {
-          if (!map[img.product_id]) {
-            map[img.product_id] = img.url
-          }
-        })
+          const map: Record<string, string> = {}
+          imageRows?.forEach(img => {
+            if (!map[img.product_id]) map[img.product_id] = img.url
+          })
+          setImages(map)
+        }
 
-        setImages(map)
         setLoading(false)
       } catch (e: any) {
         setError(e.message)
@@ -123,26 +123,35 @@ export default function OrdersPage() {
     load()
   }, [])
 
+  /* ✅ Cancel order */
+  async function cancelOrder(orderId: string) {
+    const ok = confirm('Are you sure you want to cancel this order?')
+    if (!ok) return
+
+    await fetch('/api/orders/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId }),
+    })
+
+    setOrders(orders =>
+      orders.map(o =>
+        o.id === orderId ? { ...o, status: 'cancelled' } : o
+      )
+    )
+  }
+
   const filteredOrders = useMemo(() => {
     if (!search) return orders
     const q = search.toLowerCase()
-    return orders.filter(order =>
-      order.order_no.toLowerCase().includes(q) ||
-      order.order_items.some(item =>
-        item.name.toLowerCase().includes(q)
-      )
+    return orders.filter(o =>
+      o.order_no.toLowerCase().includes(q) ||
+      o.order_items.some(i => i.name.toLowerCase().includes(q))
     )
   }, [orders, search])
 
   if (loading) return <div style={{ padding: 20 }}>Loading…</div>
-
-  if (error) {
-    return (
-      <div style={{ padding: 20, color: 'crimson' }}>
-        {error}
-      </div>
-    )
-  }
+  if (error) return <div style={{ padding: 20, color: 'crimson' }}>{error}</div>
 
   return (
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
@@ -155,17 +164,17 @@ export default function OrdersPage() {
         style={{ width: '100%', padding: 10, marginBottom: 20 }}
       />
 
+      {filteredOrders.length === 0 && <p>No orders found.</p>}
+
       {filteredOrders.map(order => (
         <div key={order.id} style={{ border: '1px solid #ddd', marginBottom: 20 }}>
           {/* HEADER */}
-          <div
-            style={{
-              padding: 12,
-              background: '#f3f4f6',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4,1fr)',
-            }}
-          >
+          <div style={{
+            padding: 12,
+            background: '#f3f4f6',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4,1fr)',
+          }}>
             <div>{new Date(order.created_at).toLocaleDateString()}</div>
             <div>₹{order.grand_total}</div>
             <div>{order.order_no}</div>
@@ -173,81 +182,53 @@ export default function OrdersPage() {
           </div>
 
           {/* ITEMS */}
-          {order.order_items.map(item => {
-            const imageUrl = images[item.product_id]
+          {order.order_items.map(item => (
+            <div key={item.id} style={{ display: 'flex', gap: 16, padding: 16 }}>
+              <div style={{ width: 90, height: 90 }}>
+                {images[item.product_id] ? (
+                  <img
+                    src={images[item.product_id]}
+                    style={{ width: 90, height: 90, objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div style={{ width: 90, height: 90, background: '#e5e7eb' }} />
+                )}
+              </div>
 
-            return (
-              <div key={item.id} style={{ display: 'flex', gap: 16, padding: 16 }}>
-                {/* IMAGE */}
-                <div style={{ width: 90, height: 90 }}>
-                  {imageUrl ? (
-                    <img
-                      src={imageUrl}
-                      alt={item.name}
-                      style={{
-                        width: 90,
-                        height: 90,
-                        objectFit: 'cover',
-                        borderRadius: 6,
-                      }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: 90,
-                        height: 90,
-                        background: '#e5e7eb',
-                      }}
-                    />
+              <div style={{ flex: 1 }}>
+                <strong>{item.name}</strong>
+                <div>₹{item.price} × {item.qty}</div>
+                <strong>₹{item.price * item.qty}</strong>
+
+                <div style={{ marginTop: 8, display: 'flex', gap: 16 }}>
+                  <Link href={`/orders/${order.id}`}>View order</Link>
+
+                  <button
+                    onClick={() => window.open(`/api/orders/${order.id}/invoice`)}
+                    style={linkBtn}
+                  >
+                    Download invoice
+                  </button>
+
+                  {order.status === 'placed' && (
+                    <button
+                      onClick={() => cancelOrder(order.id)}
+                      style={cancelBtn}
+                    >
+                      Cancel order
+                    </button>
                   )}
                 </div>
-
-                {/* DETAILS */}
-                <div style={{ flex: 1 }}>
-                  <strong>{item.name}</strong>
-                  <div>
-                    ₹{item.price} × {item.qty}
-                  </div>
-                  <strong>₹{item.price * item.qty}</strong>
-
-                  <div style={{ marginTop: 8, display: 'flex', gap: 16 }}>
-                    <Link href={`/orders/${order.id}`}>View order</Link>
-
-                    <button
-                      onClick={() =>
-                        window.open(`/api/orders/${order.id}/invoice`)
-                      }
-                      style={linkBtn}
-                    >
-                      Download invoice
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        localStorage.setItem(
-                          'cart',
-                          JSON.stringify([{ productId: item.product_id, qty: item.qty }])
-                        )
-                        window.location.href = '/checkout'
-                      }}
-                      style={linkBtn}
-                    >
-                      Re‑order
-                    </button>
-
-                    <span style={{ color: '#6b7280' }}>
-                      Track order
-                    </span>
-                  </div>
-                </div>
               </div>
-            )
-          })}
+            </div>
+          ))}
         </div>
       ))}
     </main>
   )
 }
+
+/* ================= STYLES ================= */
 
 const linkBtn = {
   background: 'none',
@@ -255,3 +236,12 @@ const linkBtn = {
   color: '#2563eb',
   cursor: 'pointer',
 }
+
+const cancelBtn = {
+  background: 'none',
+  border: 'none',
+  color: '#dc2626',
+  cursor: 'pointer',
+  fontWeight: 600,
+}
+``
