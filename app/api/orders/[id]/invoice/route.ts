@@ -1,3 +1,6 @@
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 import { NextResponse } from 'next/server'
 import PDFDocument from 'pdfkit'
 import { createClient } from '@supabase/supabase-js'
@@ -13,7 +16,6 @@ export async function GET(
 ) {
   const orderId = params.id
 
-  // 1️⃣ Fetch order + items
   const { data, error } = await supabase
     .from('orders')
     .select(`
@@ -35,7 +37,6 @@ export async function GET(
     return new NextResponse('Order not found', { status: 404 })
   }
 
-  // 2️⃣ Create PDF
   const doc = new PDFDocument({ size: 'A4', margin: 50 })
   const chunks: Buffer[] = []
 
@@ -43,12 +44,9 @@ export async function GET(
   doc.on('end', () => {})
 
   /* ===== HEADER ===== */
-  doc
-    .fontSize(20)
-    .text('Tatva Silk', { align: 'center' })
-    .fontSize(10)
-    .text('Invoice', { align: 'center' })
-    .moveDown()
+  doc.fontSize(22).text('Tatva Silk', { align: 'center' })
+  doc.fontSize(12).text('Invoice', { align: 'center' })
+  doc.moveDown()
 
   /* ===== ORDER INFO ===== */
   doc.fontSize(10)
@@ -59,10 +57,10 @@ export async function GET(
 
   /* ===== TABLE HEADER ===== */
   doc.fontSize(11)
-  doc.text('Product', 50, doc.y, { width: 250 })
-  doc.text('Qty', 300, doc.y, { width: 50 })
-  doc.text('Price', 350, doc.y, { width: 80 })
-  doc.text('Total', 430, doc.y, { width: 80 })
+  doc.text('Product', 50)
+  doc.text('Qty', 300)
+  doc.text('Price', 350)
+  doc.text('Total', 430)
   doc.moveDown(0.5)
 
   doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke()
@@ -70,9 +68,8 @@ export async function GET(
 
   /* ===== ITEMS ===== */
   let y = doc.y
-
   data.order_items.forEach((item: any) => {
-    doc.text(item.name, 50, y, { width: 250 })
+    doc.text(item.name, 50, y, { width: 240 })
     doc.text(String(item.qty), 300, y)
     doc.text(`₹${item.price}`, 350, y)
     doc.text(`₹${item.price * item.qty}`, 430, y)
@@ -80,24 +77,18 @@ export async function GET(
   })
 
   doc.moveDown(2)
-
-  /* ===== GRAND TOTAL ===== */
-  doc.fontSize(13)
-  doc.text(`Grand Total: ₹${data.grand_total}`, {
+  doc.fontSize(13).text(`Grand Total: ₹${data.grand_total}`, {
     align: 'right',
   })
 
-  /* ===== FOOTER ===== */
   doc.moveDown(3)
-  doc.fontSize(9)
-  doc.text(
+  doc.fontSize(9).text(
     'Thank you for shopping with Tatva Silk.',
     { align: 'center' }
   )
 
   doc.end()
 
-  // 3️⃣ Return PDF
   const pdfBuffer = Buffer.concat(chunks)
 
   return new NextResponse(pdfBuffer, {
@@ -107,4 +98,3 @@ export async function GET(
     },
   })
 }
-``
