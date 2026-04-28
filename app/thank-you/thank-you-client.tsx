@@ -3,7 +3,6 @@
 import { useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
-import { sendInvoiceOnWhatsApp } from '@/utils/whatsapp'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,20 +12,17 @@ const supabase = createClient(
 export default function ThankYouClient() {
   const params = useSearchParams()
   const orderNo = params.get('order')
-
-  // ✅ prevents double execution
-  const sentRef = useRef(false)
+  const ranRef = useRef(false)
 
   useEffect(() => {
-    if (!orderNo || sentRef.current) return
-    sentRef.current = true
+    if (!orderNo || ranRef.current) return
+    ranRef.current = true
 
     const run = async () => {
       const { data, error } = await supabase
         .from('orders')
         .select(`
           id,
-          order_no,
           invoice_no,
           grand_total,
           shipping_phone
@@ -36,16 +32,22 @@ export default function ThankYouClient() {
 
       if (error || !data) return
 
-      sendInvoiceOnWhatsApp({
-        phone: data.shipping_phone,
-        orderId: data.id,
-        invoiceNo: data.invoice_no,
-        amount: data.grand_total,
-      })
+      const phone = data.shipping_phone.replace(/\D/g, '')
 
-      setTimeout(() => {
-        window.location.href = '/'
-      }, 5000)
+      const message = encodeURIComponent(
+`Thank you for shopping with Tatva Silk 🙏
+
+🧾 Invoice No: ${data.invoice_no}
+💰 Amount: ₹${data.grand_total}
+
+Download your invoice:
+https://tatva-silk.vercel.app/api/orders/${data.id}/invoice
+
+— Tatva Silk & Shubh Vivah`
+      )
+
+      // ✅ THIS WORKS (no popup block)
+      window.location.href = `https://wa.me/91${phone}?text=${message}`
     }
 
     run()
@@ -56,8 +58,8 @@ export default function ThankYouClient() {
       <h1>✅ Thank you</h1>
       <p>Your order has been placed successfully.</p>
       <h3>Order No: {orderNo}</h3>
-      <p>WhatsApp invoice is opening…</p>
-      <p>You will be redirected to home page shortly.</p>
+      <p>Redirecting to WhatsApp…</p>
     </main>
   )
 }
+``
