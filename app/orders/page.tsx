@@ -40,7 +40,7 @@ export default function OrdersPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        /* ✅ 1. Get logged‑in user */
+        /* ✅ 1. Get logged in user */
         const {
           data: { user },
         } = await supabase.auth.getUser()
@@ -50,7 +50,7 @@ export default function OrdersPage() {
           return
         }
 
-        /* ✅ 2. Find customer profile */
+        /* ✅ 2. Get customer profile */
         const { data: profile } = await supabase
           .from('customer_profiles')
           .select('id')
@@ -62,7 +62,7 @@ export default function OrdersPage() {
           return
         }
 
-        /* ✅ 3. Load ONLY this customer's orders */
+        /* ✅ 3. Load orders for this customer */
         const { data: ordersData, error } = await supabase
           .from('orders')
           .select(`
@@ -99,12 +99,7 @@ export default function OrdersPage() {
           ),
         ]
 
-        if (!productIds.length) {
-          setLoading(false)
-          return
-        }
-
-        /* ✅ 5. Fetch product images */
+        /* ✅ 5. Load product images */
         const { data: imageRows } = await supabase
           .from('product_images')
           .select('product_id, url')
@@ -163,12 +158,14 @@ export default function OrdersPage() {
       {filteredOrders.map(order => (
         <div key={order.id} style={{ border: '1px solid #ddd', marginBottom: 20 }}>
           {/* HEADER */}
-          <div style={{
-            padding: 12,
-            background: '#f3f4f6',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4,1fr)'
-          }}>
+          <div
+            style={{
+              padding: 12,
+              background: '#f3f4f6',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4,1fr)',
+            }}
+          >
             <div>{new Date(order.created_at).toLocaleDateString()}</div>
             <div>₹{order.grand_total}</div>
             <div>{order.order_no}</div>
@@ -187,24 +184,39 @@ export default function OrdersPage() {
                     <img
                       src={imageUrl}
                       alt={item.name}
-                      style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 6 }}
+                      style={{
+                        width: 90,
+                        height: 90,
+                        objectFit: 'cover',
+                        borderRadius: 6,
+                      }}
                     />
                   ) : (
-                    <div style={{ width: 90, height: 90, background: '#e5e7eb' }} />
+                    <div
+                      style={{
+                        width: 90,
+                        height: 90,
+                        background: '#e5e7eb',
+                      }}
+                    />
                   )}
                 </div>
 
                 {/* DETAILS */}
                 <div style={{ flex: 1 }}>
                   <strong>{item.name}</strong>
-                  <div>₹{item.price} × {item.qty}</div>
+                  <div>
+                    ₹{item.price} × {item.qty}
+                  </div>
                   <strong>₹{item.price * item.qty}</strong>
 
                   <div style={{ marginTop: 8, display: 'flex', gap: 16 }}>
                     <Link href={`/orders/${order.id}`}>View order</Link>
 
                     <button
-                      onClick={() => window.open(`/api/orders/${order.id}/invoice`)}
+                      onClick={() =>
+                        window.open(`/api/orders/${order.id}/invoice`)
+                      }
                       style={linkBtn}
                     >
                       Download invoice
@@ -223,7 +235,9 @@ export default function OrdersPage() {
                       Re‑order
                     </button>
 
-                    <span style={{ color: '#6b7280' }}>Track order</span>
+                    <span style={{ color: '#6b7280' }}>
+                      Track order
+                    </span>
                   </div>
                 </div>
               </div>
@@ -241,4 +255,3 @@ const linkBtn = {
   color: '#2563eb',
   cursor: 'pointer',
 }
-``
