@@ -2,18 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 export default function ThankYouClient() {
   const params = useSearchParams()
   const orderNo = params.get('order')
   const ranRef = useRef(false)
-
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -21,15 +14,16 @@ export default function ThankYouClient() {
     ranRef.current = true
 
     const run = async () => {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('id, invoice_no, grand_total, shipping_phone')
-        .eq('order_no', orderNo)
-        .single()
+      const res = await fetch('/api/orders/by-order-no', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderNo }),
+      })
 
-      // ✅ Handle missing order
-      if (error || !data) {
-        setError('Order not found. Please contact support.')
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || 'Order not found')
         return
       }
 
@@ -44,7 +38,6 @@ Download your invoice:
 https://tatva-silk.vercel.app/api/orders/${data.id}/invoice`
       )
 
-      // ✅ Redirect to WhatsApp (allowed)
       window.location.href = `https://wa.me/91${phone}?text=${message}`
     }
 
@@ -69,4 +62,3 @@ https://tatva-silk.vercel.app/api/orders/${data.id}/invoice`
     </main>
   )
 }
-``
