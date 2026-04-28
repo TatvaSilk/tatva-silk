@@ -4,21 +4,21 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-/* =================== SUPABASE =================== */
+/* ================= SUPABASE ================= */
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-/* =================== CONSTANTS =================== */
+/* ================= CONSTANTS ================= */
 
 const GST_RATE = 0.05
 
 const COMPANY = {
   nameEn: 'Tatva Silk & Shubh Vivah',
   nameGu: 'તત્વા સિલ્ક અને શુભ વિવાહ',
-  gstin: '24ABCDE1234F1Z5', // replace when final GSTIN available
+  gstin: '24ABCDE1234F1Z5',
   phone: '9638683720',
   email: 'nimeshpatel001@yahoo.com',
   upiId: '9638683720@upi',
@@ -37,16 +37,16 @@ India`,
 નવસારી, ગુજરાત – ૩૯૬૩૨૧`,
 }
 
-/* =================== ROUTE =================== */
+/* ================= ROUTE ================= */
 
 export async function GET(
   _req: Request,
   { params }: { params: { id: string } }
 ) {
-  const orderId = params.id
+  const ref = params.id
 
-  /* ----- ORDER ----- */
-  const { data: order } = await supabase
+  /* ---------- 1️⃣ FETCH ORDER ONLY ---------- */
+  let { data: order } = await supabase
     .from('orders')
     .select(`
       id,
@@ -54,27 +54,56 @@ export async function GET(
       invoice_no,
       created_at,
       grand_total,
-      customer_id,
-      order_items (
-        name,
-        price,
-        qty
-      )
+      shipping_name,
+      shipping_phone,
+      shipping_address_line1,
+      shipping_address_line2,
+      shipping_city,
+      shipping_state,
+      shipping_pin
     `)
-    .eq('id', orderId)
-    .single()
+    .eq('id', ref)
+    .maybeSingle()
 
   if (!order) {
-    return new NextResponse('Order not found', { status: 404 })
+    const r = await supabase
+      .from('orders')
+      .select(`
+        id,
+        order_no,
+        invoice_no,
+        created_at,
+        grand_total,
+        shipping_name,
+        shipping_phone,
+        shipping_address_line1,
+        shipping_address_line2,
+        shipping_city,
+        shipping_state,
+        shipping_pin
+      `)
+      .eq('order_no', ref)
+      .maybeSingle()
+    order = r.data
   }
 
-  /* ----- INVOICE NUMBER (ONCE) ----- */
+  if (!order) {
+    return new NextResponse(
+      `Order not found for reference: ${ref}`,
+      { status: 404 }
+    )
+  }
+
+  /* ---------- 2️⃣ FETCH ORDER ITEMS ---------- */
+  const { data: items } = await supabase
+    .from('order_items')
+    .select('name, price, qty')
+    .eq('order_id', order.id)
+
+  /* ---------- 3️⃣ INVOICE NUMBER ---------- */
   let invoiceNo = order.invoice_no
   if (!invoiceNo) {
-    invoiceNo = `TS-INV-${new Date().getFullYear()}-${order.id
-      .slice(0, 6)
-      .toUpperCase()}`
-
+    invoiceNo = `TS-INV-${new Date().getFullYear()}-${String(order.id).slice(0,6).toUpperCase()}`
     await supabase
       .from('orders')
       .update({
@@ -84,74 +113,56 @@ export async function GET(
       .eq('id', order.id)
   }
 
-  /* ----- CUSTOMER ----- */
-  const { data: customer } = await supabase
-    .from('customer_profiles')
-    .select(
-      'full_name, address_line1, city, state, pincode, phone'
-    )
-    .eq('id', order.customer_id)
-    .single()
-
-  /* ----- TOTALS ----- */
-  const subtotal = order.order_items.reduce(
-    (sum: number, i: any) => sum + i.price * i.qty,
-    0
-  )
-
+  /* ---------- TOTALS ---------- */
+  const subtotal =
+    items?.reduce((s, i) => s + i.price * i.qty, 0) ?? 0
   const gst = subtotal * GST_RATE
 
-  /* ----- UPI QR ----- */
-  const upiUrl = `upi://pay?pa=${COMPANY.upiId}&pn=${encodeURIComponent(
-    COMPANY.nameEn
-  )}&am=${order.grand_total}&cu=INR`
+  /* ---------- ROWS ---------- */
+  const rows =
+    items
+      ?.map(
+        i => `
+<tr>
+  <td>${i.name}</td>
+  <td>5407</td>
+  <td>${i.qty}</td>
+  <td>₹${i.price}</td>
+  <td>₹${i.qty * i.price}</td>
+</tr>`
+      )
+      .join('') ?? ''
 
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(
-    upiUrl
-  )}`
+  /* ---------- ADDRESS ---------- */
+  const fullAddress = `
+${order.shipping_address_line1 || ''}
+${order.shipping_address_line2 || ''}
+${order.shipping_city || ''}, ${order.shipping_state || ''}
+- ${order.shipping_pin || ''}
+  `.trim().replace(/\n/g, '<br/>')
 
-  /* ----- ITEMS ----- */
-  const rows = order.order_items
-    .map(
-      i => `
-      <tr>
-        <td>${i.name}<br/><small>${i.name}</small></td>
-        <td>5407</td>
-        <td>${i.qty}</td>
-        <td>₹${i.price}</td>
-        <td>₹${i.qty * i.price}</td>
-      </tr>
-    `
-    )
-    .join('')
-
-  /* =================== HTML =================== */
-
+  /* ---------- HTML ---------- */
   const html = `
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8"/>
-<title>Invoice</title>
 <style>
-body { font-family: Arial, sans-serif; padding:40px; color:#111 }
+body { font-family: Arial; padding:40px }
 .header { display:flex; justify-content:space-between; align-items:center }
-.logo { height:70px; object-fit:contain }
-.box { border:1px solid #ddd; padding:12px; margin-top:12px; font-size:13px }
-table { width:100%; border-collapse:collapse; margin-top:16px; font-size:13px }
+.logo { height:70px }
+.box { border:1px solid #ddd; padding:12px; margin-top:12px }
+table { width:100%; border-collapse:collapse; margin-top:16px }
 th,td { border:1px solid #ccc; padding:8px }
 th { background:#f4f4f4 }
 .right { text-align:right }
-.total { font-size:15px; font-weight:bold }
-.footer { margin-top:40px; font-size:11px; text-align:center; color:#555 }
+.total { font-weight:bold }
 </style>
 </head>
-
 <body>
 
-<!-- HEADER -->
 <div class="header">
-  ${COMPANY.logoUrl}
+  <img src="${COMPANY.logoUrl}" class="logo"/>
   <div>
     <strong>TAX INVOICE</strong><br/>
     Invoice No: ${invoiceNo}<br/>
@@ -160,70 +171,36 @@ th { background:#f4f4f4 }
   </div>
 </div>
 
-<!-- SELLER -->
 <div class="box">
-  <strong>${COMPANY.nameEn}</strong><br/>
-  <strong>${COMPANY.nameGu}</strong><br/>
-  ${COMPANY.addressEn.replace(/\n/g, '<br/>')}<br/>
-  ${COMPANY.addressGu.replace(/\n/g, '<br/>')}<br/>
-  GSTIN: ${COMPANY.gstin}<br/>
-  Phone: ${COMPANY.phone} | Email: ${COMPANY.email}
+<strong>${COMPANY.nameEn}</strong><br/>
+<strong>${COMPANY.nameGu}</strong><br/>
+${COMPANY.addressEn.replace(/\n/g,'<br/>')}<br/>
+${COMPANY.addressGu.replace(/\n/g,'<br/>')}<br/>
+Phone: ${COMPANY.phone} | ${COMPANY.email}
 </div>
 
-<!-- BUYER -->
 <div class="box">
-  <strong>Ship To / મોકલવાનું સરનામું</strong><br/>
-  ${customer?.full_name || ''}<br/>
-  ${customer?.address_line1 || ''}<br/>
-  ${customer?.city || ''}, ${customer?.state || ''} - ${customer?.pincode || ''}<br/>
-  Phone: ${customer?.phone || ''}
+<strong>Ship To</strong><br/>
+${order.shipping_name}<br/>
+${fullAddress}<br/>
+Phone: ${order.shipping_phone}
 </div>
 
-<!-- ITEMS -->
 <table>
 <thead>
 <tr>
-  <th>Product / વસ્તુ</th>
-  <th>HSN</th>
-  <th>Qty</th>
-  <th>Rate</th>
-  <th>Amount</th>
+<th>Product</th><th>HSN</th><th>Qty</th><th>Rate</th><th>Amount</th>
 </tr>
 </thead>
-<tbody>
-${rows}
-</tbody>
+<tbody>${rows}</tbody>
 </table>
 
 <p class="right">Subtotal: ₹${subtotal.toFixed(2)}</p>
-<p class="right">CGST (2.5%): ₹${(gst / 2).toFixed(2)}</p>
-<p class="right">SGST (2.5%): ₹${(gst / 2).toFixed(2)}</p>
+<p class="right">CGST (2.5%): ₹${(gst/2).toFixed(2)}</p>
+<p class="right">SGST (2.5%): ₹${(gst/2).toFixed(2)}</p>
 <p class="right total">Grand Total: ₹${order.grand_total}</p>
 
-<!-- UPI -->
-<div class="box">
-  <strong>Pay via UPI / યુપીઆઈ દ્વારા ચુકવણી</strong><br/>
-  ${qrUrl}<br/>
-  ${COMPANY.upiId}
-</div>
-
-<!-- TERMS -->
-<div class="box">
-  <strong>Terms & Conditions / શરતો</strong><br/>
-  • Goods once sold will not be taken back<br/>
-  • Exchange within 7 days with bill<br/>
-  • Subject to Navsari jurisdiction<br/>
-  • માલ વેચાયા પછી પરત લેવામાં આવતો નથી
-</div>
-
-<div class="footer">
-  This is a computer-generated invoice / આ કમ્પ્યુટર જનરેટેડ બિલ છે
-</div>
-
-<script>
-  window.onload = () => window.print()
-</script>
-
+<script>window.print()</script>
 </body>
 </html>
 `
