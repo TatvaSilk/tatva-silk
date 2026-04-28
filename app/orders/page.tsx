@@ -9,13 +9,13 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-/* ========== TYPES ========== */
+/* ================= TYPES ================= */
 
 type ProductImage = {
   url: string
 }
 
-type ProductJoin = {
+type Product = {
   product_images: ProductImage[]
 }
 
@@ -25,7 +25,7 @@ type OrderItem = {
   price: number
   qty: number
   product_id: string
-  product: ProductJoin[] | null
+  product: Product | null
 }
 
 type Order = {
@@ -37,7 +37,7 @@ type Order = {
   order_items: OrderItem[]
 }
 
-/* ========== PAGE ========== */
+/* ================= PAGE ================= */
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -45,30 +45,37 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    supabase
-      .from('orders')
-      .select(`
-        id,
-        order_no,
-        created_at,
-        grand_total,
-        status,
-        order_items (
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
           id,
-          name,
-          price,
-          qty,
-          product_id,
-          product:products (
-            product_images ( url, sort_order )
+          order_no,
+          created_at,
+          grand_total,
+          status,
+          order_items (
+            id,
+            name,
+            price,
+            qty,
+            product_id,
+            product:products (
+              product_images (
+                url
+              )
+            )
           )
-        )
-      `)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setOrders((data ?? []) as Order[])
-        setLoading(false)
-      })
+        `)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error(error)
+      }
+
+      setOrders((data ?? []) as Order[])
+      setLoading(false)
+    })()
   }, [])
 
   const filteredOrders = useMemo(() => {
@@ -90,7 +97,6 @@ export default function OrdersPage() {
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
       <h1 style={{ fontSize: 26, marginBottom: 12 }}>Your Orders</h1>
 
-      {/* SEARCH */}
       <input
         placeholder="Search by order number or product name"
         value={search}
@@ -138,7 +144,7 @@ export default function OrdersPage() {
           {/* ITEMS */}
           {order.order_items.map(item => {
             const imageUrl =
-              item.product?.[0]?.product_images?.[0]?.url || null
+              item.product?.product_images?.[0]?.url ?? null
 
             return (
               <div
@@ -150,7 +156,7 @@ export default function OrdersPage() {
                   borderTop: '1px solid #eee',
                 }}
               >
-                {/* IMAGE (PLAIN IMG — SAFE) */}
+                {/* IMAGE */}
                 <div style={{ width: 90, height: 90 }}>
                   {imageUrl ? (
                     <img
@@ -186,52 +192,32 @@ export default function OrdersPage() {
 
                   <strong>₹{item.price * item.qty}</strong>
 
-                  <div
-                    style={{
-                      marginTop: 10,
-                      display: 'flex',
-                      gap: 16,
-                    }}
-                  >
+                  <div style={{ marginTop: 10, display: 'flex', gap: 16 }}>
                     <Link href={`/orders/${order.id}`}>View order</Link>
 
                     <button
                       onClick={() =>
                         window.open(`/api/orders/${order.id}/invoice`)
                       }
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        color: '#2563eb',
-                        cursor: 'pointer',
-                      }}
+                      style={linkBtn}
                     >
                       Download invoice
                     </button>
 
                     <button
                       onClick={() => {
-                        const cart = JSON.parse(
-                          localStorage.getItem('cart') || '[]'
-                        )
-                        cart.push({
-                          productId: item.product_id,
-                          qty: item.qty,
-                        })
                         localStorage.setItem(
                           'cart',
-                          JSON.stringify(cart)
+                          JSON.stringify([
+                            {
+                              productId: item.product_id,
+                              qty: item.qty,
+                            },
+                          ])
                         )
                         window.location.href = '/checkout'
                       }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        color: '#2563eb',
-                        cursor: 'pointer',
-                      }}
+                      style={linkBtn}
                     >
                       Re‑order
                     </button>
@@ -250,7 +236,7 @@ export default function OrdersPage() {
   )
 }
 
-/* ========== HELPERS ========== */
+/* ================= HELPERS ================= */
 
 function Header({
   label,
@@ -265,4 +251,12 @@ function Header({
       <div>{children}</div>
     </div>
   )
+}
+
+const linkBtn = {
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  color: '#2563eb',
+  cursor: 'pointer',
 }
