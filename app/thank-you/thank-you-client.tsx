@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { sendInvoiceOnWhatsApp } from '@/utils/whatsapp'
@@ -14,14 +14,15 @@ export default function ThankYouClient() {
   const params = useSearchParams()
   const orderNo = params.get('order')
 
-  const [order, setOrder] = useState<any>(null)
+  // ✅ prevents double execution
+  const sentRef = useRef(false)
 
   useEffect(() => {
-    if (!orderNo) return
+    if (!orderNo || sentRef.current) return
+    sentRef.current = true
 
-    const loadOrderAndSendWhatsapp = async () => {
-      // ✅ fetch order by order_no
-      const { data } = await supabase
+    const run = async () => {
+      const { data, error } = await supabase
         .from('orders')
         .select(`
           id,
@@ -33,11 +34,8 @@ export default function ThankYouClient() {
         .eq('order_no', orderNo)
         .single()
 
-      if (!data) return
+      if (error || !data) return
 
-      setOrder(data)
-
-      // ✅ auto open WhatsApp
       sendInvoiceOnWhatsApp({
         phone: data.shipping_phone,
         orderId: data.id,
@@ -45,22 +43,19 @@ export default function ThankYouClient() {
         amount: data.grand_total,
       })
 
-      // ✅ redirect after 5 sec
       setTimeout(() => {
         window.location.href = '/'
       }, 5000)
     }
 
-    loadOrderAndSendWhatsapp()
+    run()
   }, [orderNo])
 
   return (
     <main style={{ textAlign: 'center', padding: 80 }}>
       <h1>✅ Thank you</h1>
       <p>Your order has been placed successfully.</p>
-
-      {orderNo && <h3>Order No: {orderNo}</h3>}
-
+      <h3>Order No: {orderNo}</h3>
       <p>WhatsApp invoice is opening…</p>
       <p>You will be redirected to home page shortly.</p>
     </main>
