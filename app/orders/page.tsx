@@ -9,8 +9,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-/* ================= TYPES ================= */
-
 type OrderItem = {
   id: string
   name: string
@@ -28,8 +26,6 @@ type Order = {
   order_items: OrderItem[]
 }
 
-/* ================= PAGE ================= */
-
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [images, setImages] = useState<Record<string, string>>({})
@@ -40,42 +36,31 @@ export default function OrdersPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        /* ✅ Logged‑in user */
+        /** 1️⃣ Logged in user */
         const {
           data: { user },
         } = await supabase.auth.getUser()
 
-        if (!user) {
+        if (!user?.email) {
           setLoading(false)
           return
         }
 
-        const email = user.email ?? ''
-        const phone =
-          user.phone ??
-          (user.user_metadata?.phone as string | undefined) ??
-          ''
-
-        /* ✅ Fetch ALL matching customer profiles (email OR phone) */
-        const { data: profiles, error: profileErr } = await supabase
+        /** 2️⃣ Find customer profiles by EMAIL */
+        const { data: profiles } = await supabase
           .from('customer_profiles')
           .select('id')
-          .or(`email.eq.${email},phone.eq.${phone}`)
-
-        if (profileErr) {
-          setError(profileErr.message)
-          setLoading(false)
-          return
-        }
+          .eq('email', user.email)
 
         if (!profiles || profiles.length === 0) {
+          setOrders([])
           setLoading(false)
           return
         }
 
         const profileIds = profiles.map(p => p.id)
 
-        /* ✅ Fetch orders for ALL matching profiles */
+        /** 3️⃣ Fetch orders using matched profiles */
         const { data: ordersData, error: ordersErr } = await supabase
           .from('orders')
           .select(`
@@ -103,7 +88,7 @@ export default function OrdersPage() {
 
         setOrders(ordersData ?? [])
 
-        /* ✅ Load product images */
+        /** 4️⃣ Load product images */
         const productIds = [
           ...new Set(
             ordersData
@@ -135,10 +120,8 @@ export default function OrdersPage() {
     load()
   }, [])
 
-  /* ✅ Cancel order */
   async function cancelOrder(orderId: string) {
-    const ok = confirm('Are you sure you want to cancel this order?')
-    if (!ok) return
+    if (!confirm('Cancel this order?')) return
 
     await fetch('/api/orders/cancel', {
       method: 'POST',
@@ -180,22 +163,18 @@ export default function OrdersPage() {
 
       {filteredOrders.map(order => (
         <div key={order.id} style={{ border: '1px solid #ddd', marginBottom: 20 }}>
-          {/* HEADER */}
-          <div
-            style={{
-              padding: 12,
-              background: '#f3f4f6',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4,1fr)',
-            }}
-          >
+          <div style={{
+            padding: 12,
+            background: '#f3f4f6',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4,1fr)',
+          }}>
             <div>{new Date(order.created_at).toLocaleDateString()}</div>
             <div>₹{order.grand_total}</div>
             <div>{order.order_no}</div>
             <div>{order.status}</div>
           </div>
 
-          {/* ITEMS */}
           {order.order_items.map(item => (
             <div key={item.id} style={{ display: 'flex', gap: 16, padding: 16 }}>
               <div style={{ width: 90, height: 90 }}>
@@ -242,8 +221,6 @@ export default function OrdersPage() {
     </main>
   )
 }
-
-/* ================= STYLES ================= */
 
 const linkBtn = {
   background: 'none',
