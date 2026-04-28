@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { useEffect, useMemo, useState } from { createClient } from '@supabase/supabase-js'import { useEffect, useMemo, useState } from 'react'
 import { getCart, CartLine } from '@/lib/cart'
 
 type Product = {
@@ -26,7 +25,6 @@ export default function CheckoutPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  const [userId, setUserId] = useState<string | null>(null)
   const [cart, setCart] = useState<CartLine[]>([])
   const [products, setProducts] = useState<Record<string, Product>>({})
   const [error, setError] = useState<string | null>(null)
@@ -38,27 +36,14 @@ export default function CheckoutPage() {
   })
 
   const [address, setAddress] = useState({
-    line1: '',     // Street / house
-    village: '',   // ✅ NEW FIELD
+    line1: '',
+    village: '',
     city: '',
     state: '',
     pincode: '',
   })
 
   const [shipping, setShipping] = useState<ShippingQuote | null>(null)
-
-  /* ✅ User */
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) {
-        setUserId(data.session.user.id)
-        setCustomer(c => ({
-          ...c,
-          email: data.session.user.email || '',
-        }))
-      }
-    })
-  }, [supabase])
 
   /* ✅ Cart */
   useEffect(() => {
@@ -85,9 +70,9 @@ export default function CheckoutPage() {
     }
 
     loadProducts()
-  }, [cart, supabase])
+  }, [cart])
 
-  /* ✅ Pincode auto‑fill */
+  /* ✅ Pincode lookup */
   useEffect(() => {
     async function lookupPincode() {
       if (address.pincode.length !== 6) return
@@ -110,7 +95,7 @@ export default function CheckoutPage() {
     }
 
     lookupPincode()
-  }, [address.pincode, supabase])
+  }, [address.pincode])
 
   /* ✅ Subtotal */
   const subtotal = useMemo(() => {
@@ -123,53 +108,94 @@ export default function CheckoutPage() {
 
   const total = subtotal + (shipping?.amount ?? 0)
 
+  /* ✅ GET OR CREATE CUSTOMER PROFILE */
+  async function getCustomerProfileId() {
+    let { data } = await supabase
+      .from('customer_profiles')
+      .select('id')
+      .eq('phone', customer.phone)
+      .maybeSingle()
+
+    if (data) return data.id
+
+    const { data: created, error } = await supabase
+      .from('customer_profiles')
+      .insert({
+        full_name: customer.name,
+        phone: customer.phone,
+        email: customer.email,
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+    return created.id
+  }
+
   /* ✅ PLACE ORDER */
   async function placeOrder() {
     setError(null)
 
-    if (!userId) return setError('Please login')
-    if (!customer.name || !customer.phone) return setError('Enter name & phone')
+    if (!customer.name || !customer.phone)
+      return setError('Enter customer name & phone')
+
     if (
       !address.line1 ||
       !address.village ||
       !address.city ||
       !address.state ||
       !address.pincode
-    ) return setError('Complete address')
+    )
+      return setError('Complete address')
+
     if (!shipping) return setError('Invalid pincode')
 
-    const res = await fetch('/api/orders/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customer_id: userId,
-        items: cart.map(l => {
-          const p = products[l.productId]
-          const price = p?.offer_price ?? p?.original_price ?? 0
-          return {
-            productId: l.productId,
-            name: p?.name || 'Product',
-            price,
-            qty: l.qty,
-          }
-        }),
-        amount: subtotal,
-        delivery_fee: shipping.amount,
-        payment_status: 'cod_pending',
-        customer,
-        address,
-      }),
-    })
+    try {
+      const customerProfileId = await getCustomerProfileId()
 
-    const data = await res.json()
+      const { data: order, error } = await supabase
+        .from('orders')
+        .insert({
+          customer_id: customerProfileId,
+          subtotal,
+          delivery_fee: shipping.amount,
+          grand_total: total,
+          status: 'placed',
+          payment_status: 'cod_pending',
 
-    if (!res.ok) {
-      setError(data.error || 'Order failed')
-      return
+          shipping_name: customer.name,
+          shipping_phone: customer.phone,
+          shipping_address_line1: address.line1,
+          shipping_address_line2: address.village,
+          shipping_city: address.city,
+          shipping_state: address.state,
+          shipping_pin: address.pincode,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      const items = cart.map(l => {
+        const p = products[l.productId]
+        const price = p?.offer_price ?? p?.original_price ?? 0
+        return {
+          order_id: order.id,
+          product_id: l.productId,
+          name: p?.name || 'Product',
+          price,
+          qty: l.qty,
+        }
+      })
+
+      await supabase.from('order_items').insert(items)
+
+      localStorage.setItem('cart', '[]')
+      window.location.href = `/thank-you?order=${order.order_no}`
+    } catch (e: any) {
+      console.error(e)
+      setError(e.message || 'Order failed')
     }
-
-    localStorage.setItem('cart', '[]')
-    window.location.href = `/thank-you?order=${data.orderNo}`
   }
 
   return (
@@ -204,10 +230,10 @@ export default function CheckoutPage() {
 
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
 
-      <button onClick={placeOrder}
-        style={{ padding: 12, background: '#f59e0b' }}>
+      <button onClick={placeOrder} style={{ padding: 12, background: '#f59e0b' }}>
         Place Order
       </button>
     </main>
   )
 }
+
