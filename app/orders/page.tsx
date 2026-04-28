@@ -45,16 +45,16 @@ export default function OrdersPage() {
           data: { user },
         } = await supabase.auth.getUser()
 
-        if (!user) {
+        if (!user?.email) {
           setLoading(false)
           return
         }
 
-        /* ✅ Find customer profile by PHONE (not email) */
+        /* ✅ Find customer profile by EMAIL */
         const { data: profile } = await supabase
           .from('customer_profiles')
           .select('id')
-          .eq('phone', user.phone ?? '')
+          .eq('email', user.email)
           .maybeSingle()
 
         if (!profile) {
@@ -63,7 +63,7 @@ export default function OrdersPage() {
           return
         }
 
-        /* ✅ Load this customer's orders */
+        /* ✅ Fetch orders */
         const { data: ordersData, error } = await supabase
           .from('orders')
           .select(`
@@ -91,7 +91,7 @@ export default function OrdersPage() {
 
         setOrders(ordersData ?? [])
 
-        /* ✅ Fetch product images */
+        /* ✅ Product images */
         const productIds = [
           ...new Set(
             ordersData
@@ -108,7 +108,9 @@ export default function OrdersPage() {
 
           const map: Record<string, string> = {}
           imageRows?.forEach(img => {
-            if (!map[img.product_id]) map[img.product_id] = img.url
+            if (!map[img.product_id]) {
+              map[img.product_id] = img.url
+            }
           })
           setImages(map)
         }
@@ -134,9 +136,9 @@ export default function OrdersPage() {
       body: JSON.stringify({ orderId }),
     })
 
-    setOrders(orders =>
-      orders.map(o =>
-        o.id === orderId ? { ...o, status: 'cancelled' } : o
+    setOrders(o =>
+      o.map(ord =>
+        ord.id === orderId ? { ...ord, status: 'cancelled' } : ord
       )
     )
   }
@@ -146,7 +148,9 @@ export default function OrdersPage() {
     const q = search.toLowerCase()
     return orders.filter(o =>
       o.order_no.toLowerCase().includes(q) ||
-      o.order_items.some(i => i.name.toLowerCase().includes(q))
+      o.order_items.some(i =>
+        i.name.toLowerCase().includes(q)
+      )
     )
   }, [orders, search])
 
@@ -184,10 +188,12 @@ export default function OrdersPage() {
           {/* ITEMS */}
           {order.order_items.map(item => (
             <div key={item.id} style={{ display: 'flex', gap: 16, padding: 16 }}>
+              {/* IMAGE */}
               <div style={{ width: 90, height: 90 }}>
                 {images[item.product_id] ? (
                   <img
                     src={images[item.product_id]}
+                    alt={item.name}
                     style={{ width: 90, height: 90, objectFit: 'cover' }}
                   />
                 ) : (
@@ -195,6 +201,7 @@ export default function OrdersPage() {
                 )}
               </div>
 
+              {/* DETAILS */}
               <div style={{ flex: 1 }}>
                 <strong>{item.name}</strong>
                 <div>₹{item.price} × {item.qty}</div>
@@ -244,4 +251,3 @@ const cancelBtn = {
   cursor: 'pointer',
   fontWeight: 600,
 }
-``
