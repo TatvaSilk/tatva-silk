@@ -11,21 +11,12 @@ const supabase = createClient(
 
 /* ========== TYPES ========== */
 
-type ProductImage = {
-  url: string
-}
-
-type Product = {
-  product_images: ProductImage[]
-}
-
 type OrderItem = {
   id: string
   name: string
   price: number
   qty: number
   product_id: string
-  product: Product[] | null // ✅ Supabase returns array
 }
 
 type Order = {
@@ -41,12 +32,14 @@ type Order = {
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
+  const [images, setImages] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    const loadOrders = async () => {
-      const { data, error } = await supabase
+    const load = async () => {
+      /** 1️⃣ Load orders */
+      const { data: ordersData, error } = await supabase
         .from('orders')
         .select(`
           id,
@@ -59,25 +52,46 @@ export default function OrdersPage() {
             name,
             price,
             qty,
-            product_id,
-            product:products (
-              product_images ( url )
-            )
+            product_id
           )
         `)
         .order('created_at', { ascending: false })
 
       if (error) {
         console.error(error)
-        setLoading(false)
         return
       }
 
-      setOrders(data ?? [])
+      setOrders(ordersData ?? [])
+
+      /** 2️⃣ Collect product IDs */
+      const productIds = [
+        ...new Set(
+          ordersData
+            ?.flatMap(o => o.order_items)
+            .map(i => i.product_id)
+        ),
+      ]
+
+      /** 3️⃣ Fetch images EXACTLY like Home */
+      const { data: imageRows } = await supabase
+        .from('product_images')
+        .select('product_id, url')
+        .in('product_id', productIds)
+
+      /** 4️⃣ Map productId → image URL */
+      const map: Record<string, string> = {}
+      imageRows?.forEach(img => {
+        if (!map[img.product_id]) {
+          map[img.product_id] = img.url
+        }
+      })
+
+      setImages(map)
       setLoading(false)
     }
 
-    loadOrders()
+    load()
   }, [])
 
   const filteredOrders = useMemo(() => {
@@ -91,121 +105,59 @@ export default function OrdersPage() {
     )
   }, [orders, search])
 
-  if (loading) {
-    return <div style={{ padding: 20 }}>Loading orders…</div>
-  }
+  if (loading) return <div style={{ padding: 20 }}>Loading…</div>
 
   return (
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
-      <h1 style={{ fontSize: 26, marginBottom: 12 }}>Your Orders</h1>
+      <h1>Your Orders</h1>
 
       <input
-        placeholder="Search by order number or product name"
         value={search}
         onChange={e => setSearch(e.target.value)}
-        style={{
-          width: '100%',
-          padding: 10,
-          marginBottom: 20,
-          borderRadius: 6,
-          border: '1px solid #ccc',
-        }}
+        placeholder="Search orders"
+        style={{ width: '100%', padding: 10, marginBottom: 20 }}
       />
 
       {filteredOrders.map(order => (
-        <div
-          key={order.id}
-          style={{
-            border: '1px solid #ddd',
-            borderRadius: 8,
-            marginBottom: 20,
-            background: '#fff',
-          }}
-        >
+        <div key={order.id} style={{ border: '1px solid #ddd', marginBottom: 20 }}>
           {/* HEADER */}
-          <div
-            style={{
-              padding: 12,
-              background: '#f3f4f6',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 12,
-              fontSize: 13,
-            }}
-          >
-            <Header label="ORDER PLACED">
-              {new Date(order.created_at).toLocaleDateString()}
-            </Header>
-            <Header label="TOTAL">₹{order.grand_total}</Header>
-            <Header label="ORDER #">{order.order_no}</Header>
-            <Header label="STATUS">{order.status}</Header>
+          <div style={{ padding: 12, background: '#f3f4f6', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
+            <div>{new Date(order.created_at).toLocaleDateString()}</div>
+            <div>₹{order.grand_total}</div>
+            <div>{order.order_no}</div>
+            <div>{order.status}</div>
           </div>
 
           {/* ITEMS */}
           {order.order_items.map(item => {
-            const imageUrl =
-              item.product?.[0]?.product_images?.[0]?.url ?? null
+            const imageUrl = images[item.product_id]
 
             return (
-              <div
-                key={item.id}
-                style={{
-                  display: 'flex',
-                  gap: 16,
-                  padding: 16,
-                  borderTop: '1px solid #eee',
-                }}
-              >
+              <div key={item.id} style={{ display: 'flex', gap: 16, padding: 16 }}>
                 {/* IMAGE */}
                 <div style={{ width: 90, height: 90 }}>
                   {imageUrl ? (
                     <img
                       src={imageUrl}
                       alt={item.name}
-                      style={{
-                        width: 90,
-                        height: 90,
-                        objectFit: 'cover',
-                        borderRadius: 6,
-                        display: 'block',
-                      }}
+                      style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 6 }}
                     />
                   ) : (
-                    <div
-                      style={{
-                        width: 90,
-                        height: 90,
-                        background: '#e5e7eb',
-                        borderRadius: 6,
-                      }}
-                    />
+                    <div style={{ width: 90, height: 90, background: '#e5e7eb' }} />
                   )}
                 </div>
 
                 {/* DETAILS */}
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>{item.name}</div>
-
-                  <div style={{ marginTop: 6 }}>
-                    ₹{item.price} × {item.qty}
-                  </div>
-
+                  <strong>{item.name}</strong>
+                  <div>₹{item.price} × {item.qty}</div>
                   <strong>₹{item.price * item.qty}</strong>
 
-                  {/* ACTIONS */}
-                  <div
-                    style={{
-                      marginTop: 10,
-                      display: 'flex',
-                      gap: 16,
-                    }}
-                  >
+                  <div style={{ marginTop: 8, display: 'flex', gap: 16 }}>
                     <Link href={`/orders/${order.id}`}>View order</Link>
 
                     <button
-                      onClick={() =>
-                        window.open(`/api/orders/${order.id}/invoice`)
-                      }
+                      onClick={() => window.open(`/api/orders/${order.id}/invoice`)}
                       style={linkBtn}
                     >
                       Download invoice
@@ -215,12 +167,7 @@ export default function OrdersPage() {
                       onClick={() => {
                         localStorage.setItem(
                           'cart',
-                          JSON.stringify([
-                            {
-                              productId: item.product_id,
-                              qty: item.qty,
-                            },
-                          ])
+                          JSON.stringify([{ productId: item.product_id, qty: item.qty }])
                         )
                         window.location.href = '/checkout'
                       }}
@@ -241,27 +188,9 @@ export default function OrdersPage() {
   )
 }
 
-/* ========== HELPERS ========== */
-
-function Header({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <div>
-      <div style={{ fontSize: 11, color: '#6b7280' }}>{label}</div>
-      <div>{children}</div>
-    </div>
-  )
-}
-
 const linkBtn = {
   background: 'none',
   border: 'none',
-  padding: 0,
   color: '#2563eb',
   cursor: 'pointer',
 }
