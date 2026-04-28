@@ -11,32 +11,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-/* ================= CONSTANTS ================= */
-
-const GST_RATE = 0.05
-
-const COMPANY = {
-  nameEn: 'Tatva Silk & Shubh Vivah',
-  nameGu: 'તત્વા સિલ્ક અને શુભ વિવાહ',
-  gstin: '24ABCDE1234F1Z5',
-  phone: '9638683720',
-  email: 'nimeshpatel001@yahoo.com',
-  upiId: '9638683720@upi',
-  logoUrl:
-    'https://jebxuzazodxbzmwietls.supabase.co/storage/v1/object/public/logo/Designer%20(5).png',
-  addressEn: `D-07/C, Ground Floor, Laxmi Palace
-Shop No. 7, Old Laxmi Talkies
-Station Road, Tatanagar Society
-Bilimora, Ta-Gandevi
-Dist. Navsari, Gujarat – 396321
-India`,
-  addressGu: `ડી-૦૭/સી, ગ્રાઉન્ડ ફ્લોર, લક્ષ્મી પેલેસ
-શોપ નં. ૭, જુનું લક્ષ્મી ટોકીઝ
-સ્ટેશન રોડ, તાતાનગર સોસાયટી
-બિલીમોરા, તા-ગણદેવી
-નવસારી, ગુજરાત – ૩૯૬૩૨૧`,
-}
-
 /* ================= ROUTE ================= */
 
 export async function GET(
@@ -45,14 +19,12 @@ export async function GET(
 ) {
   const ref = params.id
 
-  /* ---------- FIND ORDER (id OR order_no) ---------- */
-
+  // ✅ Step 1: try UUID id
   let { data: order } = await supabase
     .from('orders')
     .select(`
       id,
       order_no,
-      invoice_no,
       created_at,
       grand_total,
       shipping_name,
@@ -67,13 +39,13 @@ export async function GET(
     .eq('id', ref)
     .maybeSingle()
 
+  // ✅ Step 2: fallback to order_no
   if (!order) {
-    const r = await supabase
+    const res = await supabase
       .from('orders')
       .select(`
         id,
         order_no,
-        invoice_no,
         created_at,
         grand_total,
         shipping_name,
@@ -88,138 +60,32 @@ export async function GET(
       .eq('order_no', ref)
       .maybeSingle()
 
-    order = r.data
+    order = res.data
   }
 
+  // ❌ Step 3: real error
   if (!order) {
-    return new NextResponse('Order not found', { status: 404 })
-  }
-
-  /* ---------- INVOICE NUMBER ---------- */
-
-  let invoiceNo = order.invoice_no
-  if (!invoiceNo) {
-    invoiceNo = `TS-INV-${new Date().getFullYear()}-${order.id
-      .slice(0, 6)
-      .toUpperCase()}`
-
-    await supabase
-      .from('orders')
-      .update({
-        invoice_no: invoiceNo,
-        invoice_issued_at: new Date(),
-      })
-      .eq('id', order.id)
-  }
-
-  /* ---------- TOTALS ---------- */
-
-  const subtotal = order.order_items.reduce(
-    (s: number, i: any) => s + i.price * i.qty,
-    0
-  )
-
-  const gst = subtotal * GST_RATE
-
-  /* ---------- UPI QR ---------- */
-
-  const upiUrl = `upi://pay?pa=${COMPANY.upiId}&pn=${encodeURIComponent(
-    COMPANY.nameEn
-  )}&am=${order.grand_total}&cu=INR`
-
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(
-    upiUrl
-  )}`
-
-  /* ---------- ITEMS ---------- */
-
-  const rows = order.order_items
-    .map(
-      i => `
-      <tr>
-        <td>${i.name}</td>
-        <td>5407</td>
-        <td>${i.qty}</td>
-        <td>₹${i.price}</td>
-        <td>₹${i.qty * i.price}</td>
-      </tr>
-    `
+    return new NextResponse(
+      `Order not found for reference: ${ref}`,
+      { status: 404 }
     )
-    .join('')
+  }
 
-  /* ================= HTML ================= */
-
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<style>
-body { font-family: Arial; padding:40px }
-.header { display:flex; justify-content:space-between; align-items:center }
-.logo { height:70px }
-.box { border:1px solid #ddd; padding:12px; margin-top:12px }
-table { width:100%; border-collapse:collapse; margin-top:16px }
-th,td { border:1px solid #ccc; padding:8px }
-th { background:#f4f4f4 }
-.right { text-align:right }
-.total { font-weight:bold }
-</style>
-</head>
-<body>
-
-<div class="header">
-  <img src="${COMPANY.logoUrl}" class="logo" />
-  <div>
-    <strong>TAX INVOICE</strong><br/>
-    Invoice: ${invoiceNo}<br/>
-    Order: ${order.order_no}<br/>
-    Date: ${new Date(order.created_at).toLocaleDateString()}
-  </div>
-</div>
-
-<div class="box">
-<strong>${COMPANY.nameEn}</strong><br/>
-<strong>${COMPANY.nameGu}</strong><br/>
-${COMPANY.addressEn.replace(/\n/g,'<br/>')}<br/>
-${COMPANY.addressGu.replace(/\n/g,'<br/>')}<br/>
-Phone: ${COMPANY.phone} | ${COMPANY.email}
-</div>
-
-<div class="box">
-<strong>Ship To / મોકલવાનું સરનામું</strong><br/>
-${order.shipping_name}<br/>
-${order.shipping_address}<br/>
-Phone: ${order.shipping_phone}
-</div>
-
-<table>
-<thead>
-<tr>
-<th>Product</th><th>HSN</th><th>Qty</th><th>Rate</th><th>Amount</th>
-</tr>
-</thead>
-<tbody>${rows}</tbody>
-</table>
-
-<p class="right">Subtotal: ₹${subtotal}</p>
-<p class="right">CGST 2.5%: ₹${(gst/2).toFixed(2)}</p>
-<p class="right">SGST 2.5%: ₹${(gst/2).toFixed(2)}</p>
-<p class="right total">Grand Total: ₹${order.grand_total}</p>
-
-<div class="box">
-<strong>UPI Payment</strong><br/>
-<img src="${qrUrl}" /><br/>
-${COMPANY.upiId}
-</div>
-
-<script>window.print()</script>
-</body>
-</html>
-`
-
-  return new NextResponse(html, {
-    headers: { 'Content-Type': 'text/html' },
-  })
+  // ✅ TEMP RESPONSE (to confirm fix)
+  return new NextResponse(
+    JSON.stringify({
+      success: true,
+      order_id: order.id,
+      order_no: order.order_no,
+      customer: {
+        name: order.shipping_name,
+        phone: order.shipping_phone,
+        address: order.shipping_address,
+      },
+      amount: order.grand_total,
+      items: order.order_items,
+    }),
+    { headers: { 'Content-Type': 'application/json' } }
+  )
 }
 ``
