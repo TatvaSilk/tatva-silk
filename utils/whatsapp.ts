@@ -9,12 +9,9 @@ export function sendInvoiceOnWhatsApp({
   invoiceNo: string
   amount: number
 }) {
-  if (!phone) {
-    alert('Phone number not found')
-    return
-  }
+  if (!phone) return
 
-  const cleanedPhone = phone.replace(/\D/g, '')
+  const cleanPhone = phone.replace(/\D/g, '')
 
   const message = encodeURIComponent(
 `Thank you for shopping with Tatva Silk 🙏
@@ -28,6 +25,5 @@ https://tatva-silk.vercel.app/api/orders/${orderId}/invoice
 — Tatva Silk & Shubh Vivah`
   )
 
-  const url = `https://wa.me/91${cleanedPhone}?text=${message}`
-  window.open(url, '_blank')
+  window.open(`https://wa.me/91${cleanPhone}?text=${message}`, '_blank')
 }
