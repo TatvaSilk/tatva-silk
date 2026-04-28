@@ -50,7 +50,7 @@ https://tatva-silk.vercel.app/api/orders/${data.id}/invoice`
       document.body.removeChild(link)
 
       // ✅ NOW we are still on thank-you page
-      // ✅ Redirect safely after 30 seconds
+      // ✅ Redirect safely after 15 seconds
       setTimeout(() => {
         window.location.href = '/'
       }, 30000)
@@ -74,7 +74,7 @@ https://tatva-silk.vercel.app/api/orders/${data.id}/invoice`
       <p>Your order has been placed successfully.</p>
       <h3>Order No: {orderNo}</h3>
       <p>WhatsApp invoice opened in new tab.</p>
-      <p>You will be redirected to home page in 30 seconds.</p>
+      <p>You will be redirected to home page in 15 seconds.</p>
     </main>
   )
 }
