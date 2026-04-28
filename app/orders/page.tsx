@@ -31,110 +31,56 @@ export default function OrdersPage() {
   const [images, setImages] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
-      try {
-        /** 1️⃣ Logged in user */
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        if (!user?.email) {
-          setLoading(false)
-          return
-        }
-
-        /** 2️⃣ Find customer profiles by EMAIL */
-        const { data: profiles } = await supabase
-          .from('customer_profiles')
-          .select('id')
-          .eq('email', user.email)
-
-        if (!profiles || profiles.length === 0) {
-          setOrders([])
-          setLoading(false)
-          return
-        }
-
-        const profileIds = profiles.map(p => p.id)
-
-        /** 3️⃣ Fetch orders using matched profiles */
-        const { data: ordersData, error: ordersErr } = await supabase
-          .from('orders')
-          .select(`
-            id,
-            order_no,
-            created_at,
-            grand_total,
-            status,
-            order_items (
-              id,
-              name,
-              price,
-              qty,
-              product_id
-            )
-          `)
-          .in('customer_id', profileIds)
-          .order('created_at', { ascending: false })
-
-        if (ordersErr) {
-          setError(ordersErr.message)
-          setLoading(false)
-          return
-        }
-
-        setOrders(ordersData ?? [])
-
-        /** 4️⃣ Load product images */
-        const productIds = [
-          ...new Set(
-            ordersData
-              ?.flatMap(o => o.order_items)
-              .map(i => i.product_id)
-          ),
-        ]
-
-        if (productIds.length > 0) {
-          const { data: imageRows } = await supabase
-            .from('product_images')
-            .select('product_id, url')
-            .in('product_id', productIds)
-
-          const map: Record<string, string> = {}
-          imageRows?.forEach(img => {
-            if (!map[img.product_id]) map[img.product_id] = img.url
-          })
-          setImages(map)
-        }
-
+      // ✅ Logged-in user email
+      const { data } = await supabase.auth.getUser()
+      const email = data?.user?.email
+      if (!email) {
         setLoading(false)
-      } catch (e: any) {
-        setError(e.message)
-        setLoading(false)
+        return
       }
+
+      // ✅ Fetch orders via API (service role)
+      const res = await fetch('/api/orders/my', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+
+      const json = await res.json()
+      const ordersData: Order[] = json.orders ?? []
+
+      setOrders(ordersData)
+
+      // ✅ Fetch images
+      const productIds = [
+        ...new Set(
+          ordersData
+            .flatMap(o => o.order_items)
+            .map(i => i.product_id)
+        ),
+      ]
+
+      if (productIds.length) {
+        const { data: imgs } = await supabase
+          .from('product_images')
+          .select('product_id, url')
+          .in('product_id', productIds)
+
+        const map: Record<string, string> = {}
+        imgs?.forEach(i => {
+          if (!map[i.product_id]) map[i.product_id] = i.url
+        })
+        setImages(map)
+      }
+
+      setLoading(false)
     }
 
     load()
   }, [])
-
-  async function cancelOrder(orderId: string) {
-    if (!confirm('Cancel this order?')) return
-
-    await fetch('/api/orders/cancel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderId }),
-    })
-
-    setOrders(o =>
-      o.map(ord =>
-        ord.id === orderId ? { ...ord, status: 'cancelled' } : ord
-      )
-    )
-  }
 
   const filteredOrders = useMemo(() => {
     if (!search) return orders
@@ -146,7 +92,6 @@ export default function OrdersPage() {
   }, [orders, search])
 
   if (loading) return <div style={{ padding: 20 }}>Loading…</div>
-  if (error) return <div style={{ padding: 20, color: 'crimson' }}>{error}</div>
 
   return (
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
@@ -181,37 +126,23 @@ export default function OrdersPage() {
                 {images[item.product_id] ? (
                   <img
                     src={images[item.product_id]}
-                    alt={item.name}
-                    style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 6 }}
+                    style={{ width: 90, height: 90, objectFit: 'cover' }}
                   />
                 ) : (
                   <div style={{ width: 90, height: 90, background: '#e5e7eb' }} />
                 )}
               </div>
 
-              <div style={{ flex: 1 }}>
+              <div>
                 <strong>{item.name}</strong>
                 <div>₹{item.price} × {item.qty}</div>
                 <strong>₹{item.price * item.qty}</strong>
 
                 <div style={{ marginTop: 8, display: 'flex', gap: 16 }}>
                   <Link href={`/orders/${order.id}`}>View order</Link>
-
-                  <button
-                    onClick={() => window.open(`/api/orders/${order.id}/invoice`)}
-                    style={linkBtn}
-                  >
+                  <button onClick={() => window.open(`/api/orders/${order.id}/invoice`)}>
                     Download invoice
                   </button>
-
-                  {order.status === 'placed' && (
-                    <button
-                      onClick={() => cancelOrder(order.id)}
-                      style={cancelBtn}
-                    >
-                      Cancel order
-                    </button>
-                  )}
                 </div>
               </div>
             </div>
@@ -220,19 +151,4 @@ export default function OrdersPage() {
       ))}
     </main>
   )
-}
-
-const linkBtn = {
-  background: 'none',
-  border: 'none',
-  color: '#2563eb',
-  cursor: 'pointer',
-}
-
-const cancelBtn = {
-  background: 'none',
-  border: 'none',
-  color: '#dc2626',
-  cursor: 'pointer',
-  fontWeight: 600,
 }
