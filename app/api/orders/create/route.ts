@@ -25,6 +25,7 @@ export async function POST(req: Request) {
     if (
       !customer?.name ||
       !customer?.phone ||
+      !customer?.email ||           // ✅ email REQUIRED
       !Array.isArray(items) ||
       items.length === 0 ||
       !address
@@ -37,25 +38,31 @@ export async function POST(req: Request) {
 
     /* ================= CUSTOMER PROFILE ================= */
 
-    // 1️⃣ Try existing profile
-    let profileId: string | null = null
-
-    const { data: existingProfile } = await supabase
+    // 1️⃣ Try existing profile by PHONE
+    let { data: existingProfile } = await supabase
       .from('customer_profiles')
-      .select('id')
+      .select('id, email')
       .eq('phone', customer.phone)
       .maybeSingle()
 
+    // ✅ Case A: profile exists
     if (existingProfile) {
-      profileId = existingProfile.id
-    } else {
-      // 2️⃣ Create new profile
+      // 🔴 If email missing, FIX IT permanently
+      if (!existingProfile.email) {
+        await supabase
+          .from('customer_profiles')
+          .update({ email: customer.email })
+          .eq('id', existingProfile.id)
+      }
+    } 
+    // ✅ Case B: profile does not exist → create
+    else {
       const { data: createdProfile, error } = await supabase
         .from('customer_profiles')
         .insert({
           full_name: customer.name,
           phone: customer.phone,
-          email: customer.email || null,
+          email: customer.email,     // ✅ email stored
         })
         .select('id')
         .single()
@@ -64,11 +71,10 @@ export async function POST(req: Request) {
         throw new Error('Failed to create customer profile')
       }
 
-      profileId = createdProfile.id
+      existingProfile = createdProfile
     }
 
-    // ✅ TypeScript now KNOWS this is not null
-    if (!profileId) {
+    if (!existingProfile?.id) {
       throw new Error('Customer profile ID missing')
     }
 
@@ -77,7 +83,7 @@ export async function POST(req: Request) {
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
-        customer_id: profileId, // ✅ TS safe ✅ FK safe
+        customer_id: existingProfile.id,
         order_no: `TS-${Date.now()}`,
         items_count: items.length,
         subtotal,
