@@ -17,7 +17,7 @@ export async function GET(
 ) {
   const orderRef = params.id
 
-  /* 1️⃣ Load order (support id OR order_no) */
+  /* 1️⃣ Load order */
   const { data: order, error } = await supabase
     .from('orders')
     .select(`
@@ -32,7 +32,7 @@ export async function GET(
         price,
         qty
       )
-    )
+    `)
     .or(`id.eq.${orderRef},order_no.eq.${orderRef}`)
     .single()
 
@@ -40,7 +40,7 @@ export async function GET(
     return new NextResponse('Order not found', { status: 404 })
   }
 
-  /* 2️⃣ Load shipping address */
+  /* 2️⃣ Shipping address */
   const { data: customer } = await supabase
     .from('customer_profiles')
     .select(`
@@ -49,8 +49,7 @@ export async function GET(
       address_line1,
       city,
       state,
-      pincode,
-      email
+      pincode
     `)
     .eq('id', order.customer_id)
     .single()
@@ -67,17 +66,17 @@ export async function GET(
 
   const invoiceNo = `TS-INV-${new Date(order.created_at).getFullYear()}-${order.id.slice(0, 6).toUpperCase()}`
 
-  /* 4️⃣ Render rows */
+  /* 4️⃣ Rows */
   const rows = order.order_items
     .map(
       (item: any) => `
-      <tr>
-        <td>${item.name}</td>
-        <td>${item.qty}</td>
-        <td>₹${item.price}</td>
-        <td>₹${item.price * item.qty}</td>
-      </tr>
-    `
+        <tr>
+          <td>${item.name}</td>
+          <td>${item.qty}</td>
+          <td>₹${item.price}</td>
+          <td>₹${item.price * item.qty}</td>
+        </tr>
+      `
     )
     .join('')
 
@@ -86,26 +85,24 @@ export async function GET(
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8"/>
+  <meta charset="utf-8" />
   <title>Invoice ${invoiceNo}</title>
   <style>
-    body { font-family: Arial; padding: 40px; }
-    h1 { text-align: center; }
-    table { width:100%; border-collapse:collapse; margin-top:20px; }
-    th,td { border:1px solid #ddd; padding:10px }
-    th { background:#f3f3f3 }
-    .right { text-align:right }
+    body { font-family: Arial; padding: 40px }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px }
+    th, td { border: 1px solid #ccc; padding: 10px }
+    th { background: #f4f4f4 }
+    .right { text-align: right }
   </style>
 </head>
 <body>
 
-<h1>Tatva Silk</h1>
+<h1 style="text-align:center">Tatva Silk</h1>
 
 <p>
 <strong>Invoice:</strong> ${invoiceNo}<br/>
-<strong>Order No:</strong> ${order.order_no}<br/>
-<strong>Date:</strong> ${new Date(order.created_at).toLocaleDateString()}<br/>
-<strong>Status:</strong> ${order.status}
+<strong>Order:</strong> ${order.order_no}<br/>
+<strong>Date:</strong> ${new Date(order.created_at).toLocaleDateString()}
 </p>
 
 <h3>Shipping Address</h3>
@@ -126,29 +123,22 @@ ${rows}
 </table>
 
 <p class="right">Subtotal: ₹${subtotal.toFixed(2)}</p>
-<p class="right">CGST (2.5%): ₹${cgst.toFixed(2)}</p>
-<p class="right">SGST (2.5%): ₹${sgst.toFixed(2)}</p>
+<p class="right">CGST 2.5%: ₹${cgst.toFixed(2)}</p>
+<p class="right">SGST 2.5%: ₹${sgst.toFixed(2)}</p>
 <p class="right"><strong>Grand Total: ₹${order.grand_total}</strong></p>
 
-<p style="margin-top:40px;text-align:center;font-size:12px">
-Thank you for shopping with Tatva Silk.
-</p>
-
 <script>
-  window.onload = () => window.print();
+  window.onload = () => window.print()
 </script>
 
 </body>
 </html>
 `
 
-  /* 6️⃣ OPTIONAL: Auto‑email (HTML ready) */
-  // You can send `html` via your existing mail system or Supabase Edge Function.
-
   return new NextResponse(html, {
     headers: {
       'Content-Type': 'text/html',
-      'Content-Disposition': \`inline; filename="invoice-\${invoiceNo}.html"\`,
+      'Content-Disposition': `inline; filename="invoice-${invoiceNo}.html"`,
     },
   })
 }
