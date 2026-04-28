@@ -21,7 +21,7 @@ export async function POST(req: Request) {
       grand_total,
     } = body
 
-    // ✅ Validate incoming data
+    // ✅ Validate
     if (
       !customer?.name ||
       !customer?.phone ||
@@ -35,27 +35,41 @@ export async function POST(req: Request) {
       )
     }
 
-    /* ================= CREATE / GET CUSTOMER PROFILE ================= */
+    /* ================= CUSTOMER PROFILE ================= */
 
-    let { data: profile } = await supabase
+    // 1️⃣ Try existing profile
+    let profileId: string | null = null
+
+    const { data: existingProfile } = await supabase
       .from('customer_profiles')
       .select('id')
       .eq('phone', customer.phone)
       .maybeSingle()
 
-    if (!profile) {
-      const { data: created, error } = await supabase
+    if (existingProfile) {
+      profileId = existingProfile.id
+    } else {
+      // 2️⃣ Create new profile
+      const { data: createdProfile, error } = await supabase
         .from('customer_profiles')
         .insert({
           full_name: customer.name,
           phone: customer.phone,
           email: customer.email || null,
         })
-        .select()
+        .select('id')
         .single()
 
-      if (error) throw error
-      profile = created
+      if (error || !createdProfile) {
+        throw new Error('Failed to create customer profile')
+      }
+
+      profileId = createdProfile.id
+    }
+
+    // ✅ TypeScript now KNOWS this is not null
+    if (!profileId) {
+      throw new Error('Customer profile ID missing')
     }
 
     /* ================= CREATE ORDER ================= */
@@ -63,7 +77,7 @@ export async function POST(req: Request) {
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
-        customer_id: profile.id, // ✅ FK SAFE
+        customer_id: profileId, // ✅ TS safe ✅ FK safe
         order_no: `TS-${Date.now()}`,
         items_count: items.length,
         subtotal,
@@ -84,11 +98,11 @@ export async function POST(req: Request) {
       .select()
       .single()
 
-    if (orderError) {
-      throw orderError
+    if (orderError || !order) {
+      throw orderError || new Error('Order creation failed')
     }
 
-    /* ================= INSERT ORDER ITEMS ================= */
+    /* ================= ORDER ITEMS ================= */
 
     const orderItems = items.map((item: any) => ({
       order_id: order.id,
@@ -104,38 +118,6 @@ export async function POST(req: Request) {
       .insert(orderItems)
 
     if (itemsError) throw itemsError
-
-    /* ================= ADMIN EMAIL (OPTIONAL) ================= */
-
-    try {
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'TatvaSilk Orders <orders@tatvasilk.com>',
-          to: [process.env.ADMIN_EMAIL!],
-          subject: `🛒 New Order Received: ${order.order_no}`,
-          html: `
-            <h2>New Order Received</h2>
-            <p><strong>Order No:</strong> ${order.order_no}</p>
-            <p><strong>Total:</strong> ₹${order.grand_total}</p>
-            <p><strong>Customer:</strong> ${customer.name}</p>
-            <p><strong>Phone:</strong> ${customer.phone}</p>
-            <hr />
-            <p>
-              ${address.line1}<br/>
-              ${address.village}<br/>
-              ${address.city}, ${address.state} - ${address.pincode}
-            </p>
-          `,
-        }),
-      })
-    } catch (e) {
-      console.error('Admin email failed', e)
-    }
 
     /* ================= SUCCESS ================= */
 
