@@ -46,13 +46,25 @@ export default function CheckoutPage() {
 
   const [shipping, setShipping] = useState<ShippingQuote | null>(null)
 
-  /* ✅ Cart */
+  /* ✅ AUTO‑FILL EMAIL FROM LOGGED IN USER */
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user?.email) {
+        setCustomer(c => ({
+          ...c,
+          email: data.user!.email!,
+        }))
+      }
+    })
+  }, [])
+
+  /* ✅ Load Cart */
   useEffect(() => {
     const c = getCart()
     setCart(Array.isArray(c) ? c : [])
   }, [])
 
-  /* ✅ Products */
+  /* ✅ Load Products */
   useEffect(() => {
     async function loadProducts() {
       if (!cart.length) return
@@ -98,6 +110,7 @@ export default function CheckoutPage() {
     lookupPincode()
   }, [address.pincode])
 
+  /* ✅ Subtotal */
   const subtotal = useMemo(() => {
     return cart.reduce((sum, l) => {
       const p = products[l.productId]
@@ -150,8 +163,8 @@ export default function CheckoutPage() {
 
     const data = await res.json()
 
-    if (!res.ok) {
-      setError(data.error || 'Order failed')
+    if (!res.ok || !data?.orderNo) {
+      setError(data?.error || 'Order failed. Please try again.')
       return
     }
 
@@ -164,25 +177,40 @@ export default function CheckoutPage() {
       <h1>Checkout</h1>
 
       <h3>Customer Details</h3>
-      <input placeholder="Name" value={customer.name}
-        onChange={e => setCustomer({ ...customer, name: e.target.value })} />
-      <input placeholder="Phone" value={customer.phone}
-        onChange={e => setCustomer({ ...customer, phone: e.target.value })} />
-      <input placeholder="Email" value={customer.email}
-        onChange={e => setCustomer({ ...customer, email: e.target.value })} />
+      <input
+        placeholder="Name"
+        value={customer.name}
+        onChange={e => setCustomer({ ...customer, name: e.target.value })}
+      />
+      <input
+        placeholder="Phone"
+        value={customer.phone}
+        onChange={e => setCustomer({ ...customer, phone: e.target.value })}
+      />
+      <input
+        placeholder="Email"
+        value={customer.email}
+        readOnly
+      />
 
       <h3>Delivery Address</h3>
-      <input placeholder="Street / House"
+      <input
+        placeholder="Street / House"
         value={address.line1}
-        onChange={e => setAddress({ ...address, line1: e.target.value })} />
-      <input placeholder="Village / Town"
+        onChange={e => setAddress({ ...address, line1: e.target.value })}
+      />
+      <input
+        placeholder="Village / Town"
         value={address.village}
-        onChange={e => setAddress({ ...address, village: e.target.value })} />
+        onChange={e => setAddress({ ...address, village: e.target.value })}
+      />
       <input placeholder="City" value={address.city} readOnly />
       <input placeholder="State" value={address.state} readOnly />
-      <input placeholder="Pincode"
+      <input
+        placeholder="Pincode"
         value={address.pincode}
-        onChange={e => setAddress({ ...address, pincode: e.target.value })} />
+        onChange={e => setAddress({ ...address, pincode: e.target.value })}
+      />
 
       <h3>Summary</h3>
       <p>Subtotal: {inr(subtotal)}</p>
@@ -191,7 +219,10 @@ export default function CheckoutPage() {
 
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
 
-      <button onClick={placeOrder} style={{ padding: 12, background: '#f59e0b' }}>
+      <button
+        onClick={placeOrder}
+        style={{ padding: 12, background: '#f59e0b' }}
+      >
         Place Order
       </button>
     </main>
