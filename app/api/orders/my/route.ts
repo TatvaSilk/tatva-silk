@@ -1,8 +1,4 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
+import { NextResponse } from 'next/server'import { NextResponse } from ' const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   const { customerId } = await req.json()
@@ -16,7 +12,7 @@ export async function POST(req: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: orders, error } = await supabase
+  const { data: orders } = await supabase
     .from('orders')
     .select(`
       id,
@@ -24,7 +20,6 @@ export async function POST(req: Request) {
       created_at,
       grand_total,
       status,
-      tracking_url,
       order_items (
         id,
         product_id,
@@ -36,9 +31,8 @@ export async function POST(req: Request) {
     .eq('customer_id', customerId)
     .order('created_at', { ascending: false })
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
   return NextResponse.json({ orders })
 }
+import { createClient } from '@supabase/supabase-js'
+
+export const runtime = 'nodejs'
