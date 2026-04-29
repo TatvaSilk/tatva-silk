@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
+
+/* ================= TYPES ================= */
 
 type OrderItem = {
   id: string
@@ -28,29 +30,49 @@ type Order = {
   order_items: OrderItem[]
 }
 
+/* ================= PAGE ================= */
+
 export default function OrdersPage() {
   const router = useRouter()
+
   const [orders, setOrders] = useState<Order[]>([])
   const [images, setImages] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
+  /* ================= LOAD ORDERS ================= */
+
   async function loadOrders() {
     setLoading(true)
 
+    /* 1️⃣ Get logged in user */
     const { data: auth } = await supabase.auth.getUser()
-    const email = auth?.user?.email
+    const userEmail = auth?.user?.email
 
-    if (!email) {
+    if (!userEmail) {
       setLoading(false)
       return
     }
 
+    /* 2️⃣ Find customer profile */
+    const { data: profile, error: profileError } = await supabase
+      .from('customer_profiles')
+      .select('id')
+      .eq('email', userEmail)
+      .single()
+
+    if (profileError || !profile) {
+      console.error('Customer profile not found')
+      setLoading(false)
+      return
+    }
+
+    /* 3️⃣ Fetch orders using customer_id */
     const res = await fetch('/api/orders/my', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ customerId: profile.id }),
     })
 
     const json = await res.json()
@@ -58,7 +80,7 @@ export default function OrdersPage() {
 
     setOrders(ordersData)
 
-    // ✅ Fetch images
+    /* 4️⃣ Fetch product images */
     const productIds = [
       ...new Set(
         ordersData.flatMap(o => o.order_items).map(i => i.product_id)
@@ -75,6 +97,7 @@ export default function OrdersPage() {
       imgs?.forEach(i => {
         if (!map[i.product_id]) map[i.product_id] = i.url
       })
+
       setImages(map)
     }
 
@@ -85,6 +108,8 @@ export default function OrdersPage() {
     loadOrders()
   }, [])
 
+  /* ================= SEARCH ================= */
+
   const filteredOrders = useMemo(() => {
     if (!search) return orders
     const q = search.toLowerCase()
@@ -94,6 +119,8 @@ export default function OrdersPage() {
     )
   }, [orders, search])
 
+  /* ================= ACTIONS ================= */
+
   async function cancelOrder(orderId: string) {
     if (!confirm('Cancel this order?')) return
 
@@ -102,7 +129,7 @@ export default function OrdersPage() {
     })
 
     if (!res.ok) {
-      alert('Cancel failed')
+      alert('Failed to cancel order')
       return
     }
 
@@ -123,7 +150,11 @@ export default function OrdersPage() {
     router.push('/cart')
   }
 
-  if (loading) return <div style={{ padding: 20 }}>Loading…</div>
+  /* ================= UI ================= */
+
+  if (loading) {
+    return <div style={{ padding: 20 }}>Loading…</div>
+  }
 
   return (
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
@@ -139,8 +170,11 @@ export default function OrdersPage() {
       {filteredOrders.length === 0 && <p>No orders found.</p>}
 
       {filteredOrders.map(order => (
-        <div key={order.id} style={{ border: '1px solid #ddd', marginBottom: 20 }}>
-          {/* HEADER */}
+        <div
+          key={order.id}
+          style={{ border: '1px solid #ddd', marginBottom: 20 }}
+        >
+          {/* ORDER HEADER */}
           <div
             style={{
               padding: 12,
@@ -165,11 +199,19 @@ export default function OrdersPage() {
                 {images[item.product_id] ? (
                   <img
                     src={images[item.product_id]}
-                    style={{ width: 90, height: 90, objectFit: 'cover' }}
+                    style={{
+                      width: 90,
+                      height: 90,
+                      objectFit: 'cover',
+                    }}
                   />
                 ) : (
                   <div
-                    style={{ width: 90, height: 90, background: '#e5e7eb' }}
+                    style={{
+                      width: 90,
+                      height: 90,
+                      background: '#e5e7eb',
+                    }}
                   />
                 )}
               </div>
@@ -181,26 +223,37 @@ export default function OrdersPage() {
                 </div>
                 <strong>₹{item.price * item.qty}</strong>
 
-                {/* ACTIONS */}
-                <div style={{ marginTop: 8, display: 'flex', gap: 12 }}>
-                  <Link href={`/orders/${order.id}`}>View order</Link>
+                {/* ACTION BUTTONS */}
+                <div
+                  style={{
+                    marginTop: 8,
+                    display: 'flex',
+                    gap: 12,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <Link href={`/orders/${order.id}`}>
+                    View Order
+                  </Link>
 
                   <button
                     onClick={() =>
                       window.open(`/api/orders/${order.id}/invoice`)
                     }
                   >
-                    Download invoice
+                    Download Invoice
                   </button>
 
                   {order.status === 'placed' && (
                     <button onClick={() => cancelOrder(order.id)}>
-                      Cancel order
+                      Cancel Order
                     </button>
                   )}
 
                   {order.status === 'delivered' && (
-                    <button onClick={() => reorder(order.id)}>Reorder</button>
+                    <button onClick={() => reorder(order.id)}>
+                      Reorder
+                    </button>
                   )}
 
                   {order.tracking_url && (
@@ -209,7 +262,7 @@ export default function OrdersPage() {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      Track shipment
+                      Track Shipment
                     </a>
                   )}
                 </div>
@@ -221,3 +274,4 @@ export default function OrdersPage() {
     </main>
   )
 }
+``
