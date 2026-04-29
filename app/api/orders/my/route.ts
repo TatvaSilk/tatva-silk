@@ -5,9 +5,9 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
-  const { email } = await req.json()
+  const { customerId } = await req.json()
 
-  if (!email) {
+  if (!customerId) {
     return NextResponse.json({ orders: [] })
   }
 
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
         qty
       )
     `)
-    .eq('customer_email', email)
+    .eq('customer_id', customerId)
     .order('created_at', { ascending: false })
 
   if (error) {
