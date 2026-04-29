@@ -26,6 +26,7 @@ type Order = {
   grand_total: number
   status: string
   tracking_url?: string | null
+  invoice_no?: string | null
   order_items: OrderItem[]
 }
 
@@ -43,7 +44,7 @@ export default function OrdersPage() {
     const load = async () => {
       setLoading(true)
 
-      // ✅ PHONE-BASED (working)
+      // ✅ phone-based (working in your system)
       const phone = '8511246143'
 
       const res = await fetch('/api/orders/my', {
@@ -54,10 +55,9 @@ export default function OrdersPage() {
 
       const json = await res.json()
       const ordersData: Order[] = json.orders ?? []
-
       setOrders(ordersData)
 
-      /* ✅ Fetch product images */
+      // ✅ product images
       const productIds = [
         ...new Set(
           ordersData.flatMap(o => o.order_items).map(i => i.product_id)
@@ -65,13 +65,13 @@ export default function OrdersPage() {
       ]
 
       if (productIds.length) {
-        const { data: imgs } = await supabase
+        const { data } = await supabase
           .from('product_images')
           .select('product_id, url')
           .in('product_id', productIds)
 
         const map: Record<string, string> = {}
-        imgs?.forEach(i => {
+        data?.forEach(i => {
           if (!map[i.product_id]) map[i.product_id] = i.url
         })
         setImages(map)
@@ -88,9 +88,10 @@ export default function OrdersPage() {
   const filteredOrders = useMemo(() => {
     if (!search) return orders
     const q = search.toLowerCase()
-    return orders.filter(o =>
-      o.order_no.toLowerCase().includes(q) ||
-      o.order_items.some(i => i.name.toLowerCase().includes(q))
+    return orders.filter(
+      o =>
+        o.order_no.toLowerCase().includes(q) ||
+        o.order_items.some(i => i.name.toLowerCase().includes(q))
     )
   }, [orders, search])
 
@@ -98,7 +99,6 @@ export default function OrdersPage() {
 
   async function cancelOrder(orderId: string) {
     if (!confirm('Cancel this order?')) return
-
     await fetch(`/api/orders/${orderId}/cancel`, { method: 'PATCH' })
     location.reload()
   }
@@ -125,7 +125,7 @@ export default function OrdersPage() {
 
       {filteredOrders.map(order => (
         <div key={order.id} style={{ border: '1px solid #ddd', marginBottom: 20 }}>
-          {/* ORDER HEADER */}
+          {/* HEADER */}
           <div
             style={{
               padding: 12,
@@ -140,7 +140,7 @@ export default function OrdersPage() {
             <div>{order.status}</div>
           </div>
 
-          {/* ORDER ITEMS */}
+          {/* ITEMS */}
           {order.order_items.map(item => (
             <div key={item.id} style={{ display: 'flex', gap: 16, padding: 16 }}>
               <div style={{ width: 90, height: 90 }}>
@@ -159,31 +159,40 @@ export default function OrdersPage() {
                 <div>₹{item.price} × {item.qty}</div>
                 <strong>₹{item.price * item.qty}</strong>
 
-                {/* ACTION BUTTONS */}
-                <div style={{ marginTop: 8, display: 'flex', gap: 12 }}>
-                  <Link href={`/orders/${order.id}`}>View order</Link>
+                {/* ✅ ACTION BUTTONS */}
+                <div style={{ marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <Link href={`/orders/${order.id}`}>View</Link>
 
-                  <button onClick={() =>
-                    window.open(`/api/orders/${order.id}/invoice`)
-                  }>
-                    Invoice
-                  </button>
+                  {order.invoice_no && (
+                    <button
+                      onClick={() =>
+                        window.open(`/api/orders/${order.id}/invoice`)
+                      }
+                    >
+                      Invoice
+                    </button>
+                  )}
 
-                  {order.status === 'placed' && (
+                  {(order.status === 'placed' || order.status === 'paid') && (
                     <button onClick={() => cancelOrder(order.id)}>
                       Cancel
                     </button>
                   )}
 
-                  {order.status === 'delivered' && (
+                  {(order.status === 'delivered' ||
+                    order.status === 'cancelled') && (
                     <button onClick={() => reorder(order.id)}>
                       Reorder
                     </button>
                   )}
 
                   {order.tracking_url && (
-                    <a href={order.tracking_url} target="_blank">
-                      Track
+                    <a
+                      href={order.tracking_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Track shipment
                     </a>
                   )}
                 </div>
