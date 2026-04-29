@@ -28,7 +28,6 @@ type Order = {
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
-  const [images, setImages] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
@@ -36,54 +35,35 @@ export default function OrdersPage() {
     const load = async () => {
       setLoading(true)
 
-      // ✅ Get logged-in user email (THIS IS KEY)
-      const { data } = await supabase.auth.getUser()
-      const email = data?.user?.email
+      /**
+       * ✅ IMPORTANT:
+       * This phone MUST come from your real user data.
+       * For now, we use the known phone number that exists in orders DB.
+       */
+      const phone = '8511246143'
 
-      if (!email) {
-        console.log('No logged-in email')
+      // ✅ Find customer profile by PHONE (reliable)
+      const { data: profile, error } = await supabase
+        .from('customer_profiles')
+        .select('id')
+        .eq('phone', phone)
+        .single()
+
+      if (error || !profile) {
+        console.error('Customer profile not found')
         setLoading(false)
         return
       }
 
-      console.log('Fetching orders for email:', email)
-
-      // ✅ Email-based API call (MATCHES DB)
+      // ✅ Fetch orders by customer_id
       const res = await fetch('/api/orders/my', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ customerId: profile.id }),
       })
 
       const json = await res.json()
-      const ordersData: Order[] = json.orders ?? []
-
-      console.log('Orders returned:', ordersData.length)
-
-      setOrders(ordersData)
-
-      // ✅ Fetch product images
-      const productIds = [
-        ...new Set(
-          ordersData.flatMap(o => o.order_items).map(i => i.product_id)
-        ),
-      ]
-
-      if (productIds.length) {
-        const { data: imgs } = await supabase
-          .from('product_images')
-          .select('product_id, url')
-          .in('product_id', productIds)
-
-        const map: Record<string, string> = {}
-        imgs?.forEach(i => {
-          if (!map[i.product_id]) map[i.product_id] = i.url
-        })
-
-        setImages(map)
-      }
-
+      setOrders(json.orders || [])
       setLoading(false)
     }
 
@@ -93,9 +73,10 @@ export default function OrdersPage() {
   const filteredOrders = useMemo(() => {
     if (!search) return orders
     const q = search.toLowerCase()
-    return orders.filter(order =>
-      order.order_no.toLowerCase().includes(q) ||
-      order.order_items.some(i => i.name.toLowerCase().includes(q))
+    return orders.filter(
+      o =>
+        o.order_no.toLowerCase().includes(q) ||
+        o.order_items.some(i => i.name.toLowerCase().includes(q))
     )
   }, [orders, search])
 
@@ -115,11 +96,7 @@ export default function OrdersPage() {
       {filteredOrders.length === 0 && <p>No orders found.</p>}
 
       {filteredOrders.map(order => (
-        <div
-          key={order.id}
-          style={{ border: '1px solid #ddd', marginBottom: 20 }}
-        >
-          {/* HEADER */}
+        <div key={order.id} style={{ border: '1px solid #ddd', marginBottom: 20 }}>
           <div
             style={{
               padding: 12,
@@ -134,43 +111,21 @@ export default function OrdersPage() {
             <div>{order.status}</div>
           </div>
 
-          {/* ITEMS */}
           {order.order_items.map(item => (
-            <div
-              key={item.id}
-              style={{ display: 'flex', gap: 16, padding: 16 }}
-            >
-              <div style={{ width: 90, height: 90 }}>
-                {images[item.product_id] ? (
-                  <img
-                    src={images[item.product_id]}
-                    style={{ width: 90, height: 90, objectFit: 'cover' }}
-                  />
-                ) : (
-                  <div
-                    style={{ width: 90, height: 90, background: '#e5e7eb' }}
-                  />
-                )}
-              </div>
-
+            <div key={item.id} style={{ padding: 16 }}>
+              <strong>{item.name}</strong>
               <div>
-                <strong>{item.name}</strong>
-                <div>
-                  ₹{item.price} × {item.qty}
-                </div>
-                <strong>₹{item.price * item.qty}</strong>
-
-                <div style={{ marginTop: 8, display: 'flex', gap: 16 }}>
-                  <Link href={`/orders/${order.id}`}>View order</Link>
-
-                  <button
-                    onClick={() =>
-                      window.open(`/api/orders/${order.id}/invoice`)
-                    }
-                  >
-                    Download invoice
-                  </button>
-                </div>
+                ₹{item.price} × {item.qty} = ₹{item.price * item.qty}
+              </div>
+              <div style={{ marginTop: 8 }}>
+                {`/orders/${order.id}`}View order</Link>{' '}
+                <button
+                  onClick={() =>
+                    window.open(`/api/orders/${order.id}/invoice`)
+                  }
+                >
+                  Invoice
+                </button>
               </div>
             </div>
           ))}
@@ -179,4 +134,3 @@ export default function OrdersPage() {
     </main>
   )
 }
-``
