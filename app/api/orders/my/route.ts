@@ -24,6 +24,8 @@ export async function POST(req: Request) {
       created_at,
       grand_total,
       status,
+      invoice_no,          -- ✅ REQUIRED for Invoice button
+      tracking_url,        -- ✅ REQUIRED for Track button
       order_items (
         id,
         product_id,
