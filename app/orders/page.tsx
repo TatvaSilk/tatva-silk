@@ -35,35 +35,23 @@ export default function OrdersPage() {
     const load = async () => {
       setLoading(true)
 
-      /**
-       * ✅ IMPORTANT:
-       * This phone MUST come from your real user data.
-       * For now, we use the known phone number that exists in orders DB.
-       */
-      const phone = '8511246143'
+      const { data } = await supabase.auth.getUser()
+      const email = data?.user?.email
 
-      // ✅ Find customer profile by PHONE (reliable)
-      const { data: profile, error } = await supabase
-        .from('customer_profiles')
-        .select('id')
-        .eq('phone', phone)
-        .single()
-
-      if (error || !profile) {
-        console.error('Customer profile not found')
+      if (!email) {
         setLoading(false)
         return
       }
 
-      // ✅ Fetch orders by customer_id
       const res = await fetch('/api/orders/my', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId: profile.id }),
+        cache: 'no-store',
+        body: JSON.stringify({ email }),
       })
 
       const json = await res.json()
-      setOrders(json.orders || [])
+      setOrders(json.orders ?? [])
       setLoading(false)
     }
 
@@ -80,7 +68,9 @@ export default function OrdersPage() {
     )
   }, [orders, search])
 
-  if (loading) return <div style={{ padding: 20 }}>Loading…</div>
+  if (loading) {
+    return <div style={{ padding: 20 }}>Loading…</div>
+  }
 
   return (
     <main style={{ maxWidth: 1100, margin: '0 auto', padding: 20 }}>
@@ -96,7 +86,10 @@ export default function OrdersPage() {
       {filteredOrders.length === 0 && <p>No orders found.</p>}
 
       {filteredOrders.map(order => (
-        <div key={order.id} style={{ border: '1px solid #ddd', marginBottom: 20 }}>
+        <div
+          key={order.id}
+          style={{ border: '1px solid #ddd', marginBottom: 20 }}
+        >
           <div
             style={{
               padding: 12,
@@ -112,20 +105,27 @@ export default function OrdersPage() {
           </div>
 
           {order.order_items.map(item => (
-            <div key={item.id} style={{ padding: 16 }}>
-              <strong>{item.name}</strong>
+            <div
+              key={item.id}
+              style={{ display: 'flex', gap: 16, padding: 16 }}
+            >
               <div>
-                ₹{item.price} × {item.qty} = ₹{item.price * item.qty}
-              </div>
-              <div style={{ marginTop: 8 }}>
-                {`/orders/${order.id}`}View order</Link>{' '}
-                <button
-                  onClick={() =>
-                    window.open(`/api/orders/${order.id}/invoice`)
-                  }
-                >
-                  Invoice
-                </button>
+                <strong>{item.name}</strong>
+                <div>
+                  ₹{item.price} × {item.qty}
+                </div>
+                <strong>₹{item.price * item.qty}</strong>
+
+                <div style={{ marginTop: 8 }}>
+                  <Link href={`/orders/${order.id}`}>View order</Link>{' '}
+                  <button
+                    onClick={() =>
+                      window.open(`/api/orders/${order.id}/invoice`)
+                    }
+                  >
+                    Download invoice
+                  </button>
+                </div>
               </div>
             </div>
           ))}
