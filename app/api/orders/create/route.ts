@@ -5,7 +5,7 @@ export const runtime = 'nodejs'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // ✅ bypasses RLS
+  process.env.SUPABASE_SERVICE_ROLE_KEY! // ✅ bypass RLS
 )
 
 type CustomerProfile = {
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
       grand_total,
     } = body
 
-    // ✅ Validate
+    /* ========== VALIDATION ========== */
     if (
       !customer?.name ||
       !customer?.phone ||
@@ -41,11 +41,10 @@ export async function POST(req: Request) {
       )
     }
 
-    /* ================= CUSTOMER PROFILE ================= */
+    /* ========== CUSTOMER PROFILE ========== */
 
     let profile: CustomerProfile | null = null
 
-    // ✅ Try find by phone
     const { data: existingProfile } = await supabase
       .from('customer_profiles')
       .select('id, email')
@@ -55,7 +54,7 @@ export async function POST(req: Request) {
     if (existingProfile) {
       profile = existingProfile
 
-      // ✅ backfill email if missing
+      // Backfill email if missing
       if (!existingProfile.email) {
         await supabase
           .from('customer_profiles')
@@ -65,7 +64,6 @@ export async function POST(req: Request) {
         profile = { ...existingProfile, email: customer.email }
       }
     } else {
-      // ✅ create profile WITH email
       const { data: createdProfile, error } = await supabase
         .from('customer_profiles')
         .insert({
@@ -83,16 +81,15 @@ export async function POST(req: Request) {
       profile = createdProfile
     }
 
-    if (!profile?.id) {
-      throw new Error('Customer profile ID missing')
-    }
+    if (!profile?.id) throw new Error('Customer profile missing')
 
-    /* ================= CREATE ORDER ================= */
+    /* ========== CREATE ORDER (CRITICAL FIX HERE) ========== */
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
         customer_id: profile.id,
+        customer_email: customer.email, // ✅✅✅ REQUIRED FIX
         order_no: `TS-${Date.now()}`,
         items_count: items.length,
         subtotal,
@@ -113,11 +110,9 @@ export async function POST(req: Request) {
       .select()
       .single()
 
-    if (orderError || !order) {
-      throw orderError || new Error('Order creation failed')
-    }
+    if (orderError || !order) throw orderError
 
-    /* ================= ORDER ITEMS ================= */
+    /* ========== ORDER ITEMS ========== */
 
     const orderItems = items.map((item: any) => ({
       order_id: order.id,
@@ -134,7 +129,7 @@ export async function POST(req: Request) {
 
     if (itemsError) throw itemsError
 
-    /* ================= SUCCESS ================= */
+    /* ========== SUCCESS ========== */
 
     return NextResponse.json({
       success: true,
