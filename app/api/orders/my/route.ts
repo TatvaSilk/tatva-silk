@@ -2,11 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   const { email } = await req.json()
@@ -15,20 +11,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ orders: [] })
   }
 
-  // ✅ Find all customer profiles for this email
-  const { data: profiles } = await supabase
-    .from('customer_profiles')
-    .select('id')
-    .eq('email', email)
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
-  if (!profiles || profiles.length === 0) {
-    return NextResponse.json({ orders: [] })
-  }
-
-  const profileIds = profiles.map(p => p.id)
-
-  // ✅ Fetch orders + items (same as admin)
-  const { data: orders } = await supabase
+  // ✅ DO NOT FILTER STATUS
+  const { data: orders, error } = await supabase
     .from('orders')
     .select(`
       id,
@@ -36,16 +25,21 @@ export async function POST(req: Request) {
       created_at,
       grand_total,
       status,
+      tracking_url,
       order_items (
         id,
+        product_id,
         name,
         price,
-        qty,
-        product_id
+        qty
       )
     `)
-    .in('customer_id', profileIds)
+    .eq('customer_email', email)
     .order('created_at', { ascending: false })
 
-  return NextResponse.json({ orders: orders ?? [] })
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ orders })
 }
