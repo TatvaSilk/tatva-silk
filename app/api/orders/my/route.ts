@@ -16,7 +16,6 @@ export async function POST(req: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // ✅ DO NOT FILTER STATUS
   const { data: orders, error } = await supabase
     .from('orders')
     .select(`
