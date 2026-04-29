@@ -24,7 +24,6 @@ export async function POST(req: Request) {
       created_at,
       grand_total,
       status,
-      tracking_url,
       order_items (
         id,
         product_id,
@@ -42,4 +41,3 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ orders })
 }
-``
