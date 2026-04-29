@@ -9,17 +9,42 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+/* ================= TYPES ================= */
+
+type OrderItem = {
+  id: string
+  name: string
+  price: number
+  qty: number
+  product_id: string
+}
+
+type Order = {
+  id: string
+  order_no: string
+  created_at: string
+  grand_total: number
+  status: string
+  tracking_url?: string | null
+  order_items: OrderItem[]
+}
+
+/* ================= PAGE ================= */
+
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<any[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [images, setImages] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+
+  /* ================= LOAD ORDERS ================= */
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
 
-      // ✅ USE PHONE (GUARANTEED MATCH)
-      const phone = '8511246143' // ← matches your DB rows
+      // ✅ PHONE-BASED (working)
+      const phone = '8511246143'
 
       const res = await fetch('/api/orders/my', {
         method: 'POST',
@@ -28,20 +53,60 @@ export default function OrdersPage() {
       })
 
       const json = await res.json()
-      setOrders(json.orders || [])
+      const ordersData: Order[] = json.orders ?? []
+
+      setOrders(ordersData)
+
+      /* ✅ Fetch product images */
+      const productIds = [
+        ...new Set(
+          ordersData.flatMap(o => o.order_items).map(i => i.product_id)
+        ),
+      ]
+
+      if (productIds.length) {
+        const { data: imgs } = await supabase
+          .from('product_images')
+          .select('product_id, url')
+          .in('product_id', productIds)
+
+        const map: Record<string, string> = {}
+        imgs?.forEach(i => {
+          if (!map[i.product_id]) map[i.product_id] = i.url
+        })
+        setImages(map)
+      }
+
       setLoading(false)
     }
 
     load()
   }, [])
 
+  /* ================= SEARCH ================= */
+
   const filteredOrders = useMemo(() => {
     if (!search) return orders
     const q = search.toLowerCase()
     return orders.filter(o =>
-      o.order_no.toLowerCase().includes(q)
+      o.order_no.toLowerCase().includes(q) ||
+      o.order_items.some(i => i.name.toLowerCase().includes(q))
     )
   }, [orders, search])
+
+  /* ================= ACTIONS ================= */
+
+  async function cancelOrder(orderId: string) {
+    if (!confirm('Cancel this order?')) return
+
+    await fetch(`/api/orders/${orderId}/cancel`, { method: 'PATCH' })
+    location.reload()
+  }
+
+  async function reorder(orderId: string) {
+    await fetch(`/api/orders/${orderId}/reorder`, { method: 'POST' })
+    location.href = '/cart'
+  }
 
   if (loading) return <div style={{ padding: 20 }}>Loading…</div>
 
@@ -60,9 +125,71 @@ export default function OrdersPage() {
 
       {filteredOrders.map(order => (
         <div key={order.id} style={{ border: '1px solid #ddd', marginBottom: 20 }}>
-          <div style={{ padding: 12, background: '#f3f4f6' }}>
-            <strong>{order.order_no}</strong> — ₹{order.grand_total} — {order.status}
+          {/* ORDER HEADER */}
+          <div
+            style={{
+              padding: 12,
+              background: '#f3f4f6',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4,1fr)',
+            }}
+          >
+            <div>{new Date(order.created_at).toLocaleDateString()}</div>
+            <div>₹{order.grand_total}</div>
+            <div>{order.order_no}</div>
+            <div>{order.status}</div>
           </div>
+
+          {/* ORDER ITEMS */}
+          {order.order_items.map(item => (
+            <div key={item.id} style={{ display: 'flex', gap: 16, padding: 16 }}>
+              <div style={{ width: 90, height: 90 }}>
+                {images[item.product_id] ? (
+                  <img
+                    src={images[item.product_id]}
+                    style={{ width: 90, height: 90, objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div style={{ width: 90, height: 90, background: '#e5e7eb' }} />
+                )}
+              </div>
+
+              <div>
+                <strong>{item.name}</strong>
+                <div>₹{item.price} × {item.qty}</div>
+                <strong>₹{item.price * item.qty}</strong>
+
+                {/* ACTION BUTTONS */}
+                <div style={{ marginTop: 8, display: 'flex', gap: 12 }}>
+                  <Link href={`/orders/${order.id}`}>View order</Link>
+
+                  <button onClick={() =>
+                    window.open(`/api/orders/${order.id}/invoice`)
+                  }>
+                    Invoice
+                  </button>
+
+                  {order.status === 'placed' && (
+                    <button onClick={() => cancelOrder(order.id)}>
+                      Cancel
+                    </button>
+                  )}
+
+                  {order.status === 'delivered' && (
+                    <button onClick={() => reorder(order.id)}>
+                      Reorder
+                    </button>
+                  )}
+
+                  {order.tracking_url && (
+                    <a href={order.tracking_url} target="_blank">
+                      Track
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       ))}
     </main>
