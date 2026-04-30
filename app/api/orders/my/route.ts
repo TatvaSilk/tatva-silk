@@ -1,20 +1,18 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
+export async function POST() {
+  const supabase = createServerClient({ cookies })
 
-export async function POST(req: Request) {
-  const { phone } = await req.json()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
 
-  if (!phone) {
-    return NextResponse.json({ orders: [] })
+  if (!user || authError) {
+    return NextResponse.json({ orders: [] }, { status: 401 })
   }
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
 
   const { data: orders, error } = await supabase
     .from('orders')
@@ -32,7 +30,7 @@ export async function POST(req: Request) {
         qty
       )
     `)
-    .eq('shipping_phone', phone)
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
   if (error) {
