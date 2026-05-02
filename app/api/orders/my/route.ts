@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function POST() {
-  const phone = cookies().get('user_phone')?.value
+export async function POST(req: Request) {
+  const { phone } = await req.json()
 
   if (!phone) {
-    return NextResponse.json({ orders: [] }, { status: 401 })
+    return NextResponse.json({ orders: [] })
   }
 
   const supabase = createClient(
