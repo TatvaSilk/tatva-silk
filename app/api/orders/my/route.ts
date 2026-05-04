@@ -6,7 +6,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST() {
-  // ✅ Create Supabase server client (NO service role)
+  // ✅ Supabase server client (NO service role key)
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -20,13 +20,17 @@ export async function POST() {
   )
 
   // ✅ Get logged-in user
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const { data: { user }, error: authError } =
+    await supabase.auth.getUser()
 
   if (!user || authError) {
-    return NextResponse.json({ orders: [] }, { status: 401 })
+    return NextResponse.json(
+      { orders: [] },
+      { status: 401 }
+    )
   }
 
-  // ✅ Fetch ONLY that user's orders
+  // ✅ RLS automatically restricts by customer_id
   const { data: orders, error } = await supabase
     .from('orders')
     .select(`
@@ -34,6 +38,7 @@ export async function POST() {
       order_no,
       created_at,
       grand_total,
+      payment_status,
       status,
       order_items (
         id,
@@ -46,7 +51,10 @@ export async function POST() {
     .order('created_at', { ascending: false })
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500 }
+    )
   }
 
   return NextResponse.json({ orders })
