@@ -1,25 +1,38 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function POST() {
-  // ✅ Correct Supabase server client
-  const supabase = createRouteHandlerClient({ cookies })
+export async function POST(req: Request) {
+  const authHeader = req.headers.get('authorization')
 
-  // ✅ Get logged-in user
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser()
+  if (!authHeader) {
+    return NextResponse.json({ orders: [] }, { status: 401 })
+  }
+
+  // ✅ Create Supabase client with JWT
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    }
+  )
+
+  // ✅ Validate user
+  const { data: { user }, error: authError } =
+    await supabase.auth.getUser()
 
   if (!user || authError) {
     return NextResponse.json({ orders: [] }, { status: 401 })
   }
 
-  // ✅ RLS enforces customer_id = auth.uid()
+  // ✅ RLS limits rows by customer_id
   const { data: orders, error } = await supabase
     .from('orders')
     .select(`
